@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>HUFT Fit Finder — Breed Fitment Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<style>
+  body { margin: 0; background: #F6F7FB; }
+  input:focus, button:focus, textarea:focus, select:focus { outline: 2px solid #FF6D1F; outline-offset: 1px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  ::-webkit-scrollbar { height: 6px; width: 8px; } ::-webkit-scrollbar-thumb { background: #C3C6D4; border-radius: 3px; }
+  details > summary { cursor: pointer; list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+
+  .app-shell { display:flex; min-height:100vh; }
+  .side { width:232px; flex-shrink:0; background:#fff; border-right:1px solid #E6E9EF; padding:14px 10px; box-sizing:border-box; position:sticky; top:0; height:100vh; overflow-y:auto; display:flex; flex-direction:column; }
+  .side .navlist { display:flex; flex-direction:column; gap:2px; margin-top:14px; flex:1; }
+  .side .sidestats { margin-top:auto; }
+  .mainarea { flex:1; min-width:0; }
+  @media (max-width: 860px) {
+    .app-shell { flex-direction:column; }
+    .side { width:100%; height:auto; position:static; flex-direction:row; align-items:center; gap:10px; border-right:none; border-bottom:1px solid #E6E9EF; padding:10px 12px; overflow-x:auto; }
+    .side .navlist { flex-direction:row; margin-top:0; gap:6px; }
+    .side .sidestats { display:none; }
+  }
+
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo } = React;
+
+/* ============================================================
+   HUFT FIT FINDER PORTAL — v2.0
+   Deploy: static Vercel. State: localStorage (swap saveAdapter
+   for Supabase later — see bottom of file).
+   All linear dims in cm, weight in kg. Adult dogs.
+   CONFIDENCE TIERS per dimension:
+     A = published breed standard or measured field study (±2–3 cm)
+     B = aggregated manufacturer sizing charts (±4–6 cm)
+     C = estimated from build/height/weight — validate in fit lab (±8 cm+)
+   ============================================================ */
+
+const CONF = {
+  A: { label: "A · High", tip: "Published standard or measured study · ±2–3 cm", color: "#00A25B", bg: "#E5F9F0" },
+  B: { label: "B · Medium", tip: "Aggregated sizing charts · ±4–6 cm", color: "#B47500", bg: "#FEF1E5" },
+  C: { label: "C · Estimate", tip: "Estimated from build — fit-lab validation needed · ±8 cm+", color: "#E2445C", bg: "#FCE9EC" },
+};
+
+/* Shared source strings */
+const SRC = {
+  akc: "AKC / FCI breed standard (height, weight)",
+  charts: "Manufacturer girth charts — Ruffwear, Kurgo, PetSmart, Artful Canine (neck, chest)",
+  kci: "Kennel Club of India breed descriptions",
+  tanuvas: "TANUVAS / ICAR phenotypic study — measured chest girth (Rajapalayam 63–68 cm; Kanni 61–67 cm)",
+  wiki: "Wikipedia breed morphometrics",
+  est: "HUFT estimate from height/weight/build — pending fit-lab measurement",
+  artful: "The Artful Canine — AKC-standard girth bands by breed (chest girth cross-checked)",
+  ind: "Indian market observation — local lines run heavier than international standard",
+};
+
+/* beh: pull 1–5, energy 1–5, escape 1–5, clip: recommended leash clip / gear */
+const BREEDS = [
+  { name:"Chihuahua", group:"Toy", weight:[1.5,3], height:[15,23], neck:[20,30], chest:[30,43], coat:"Short/Long", flags:[], pop:3, regions:{n:3,w:3,s:3,e:2}, heat:4, care:{life:[12,18],shed:2,groom:2,drool:1,skin:2,train:3,bodyLen:[24,33]}, growth:"Adult girth ~8–10 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts,SRC.artful], beh:{pull:1,energy:3,escape:2,clip:"Back-clip soft harness"}, notes:"Fragile trachea — harness strongly preferred over collar." },
+  { name:"Yorkshire Terrier", group:"Toy", weight:[2,3.2], height:[18,23], neck:[20,28], chest:[30,42], coat:"Long silky", flags:[], pop:2, regions:{n:2,w:3,s:2,e:2}, heat:3, care:{life:[12,15],shed:1,groom:4,drool:1,skin:2,train:3,bodyLen:[28,35]}, growth:"Adult girth ~8–10 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts], beh:{pull:1,energy:3,escape:2,clip:"Back-clip soft harness"}, notes:"Collapsing trachea risk — soft harness recommended." },
+  { name:"Toy Poodle", group:"Toy", weight:[2,4], height:[24,28], neck:[20,30], chest:[32,45], coat:"Curly", flags:[], pop:3, regions:{n:3,w:3,s:3,e:2}, heat:3, care:{life:[12,16],shed:1,groom:5,drool:1,skin:2,train:5,bodyLen:[28,38]}, growth:"Adult girth ~8–10 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts], beh:{pull:1,energy:3,escape:1,clip:"Back-clip harness"}, notes:"Coat mats under wide straps — smooth-edge webbing." },
+  { name:"Maltese", group:"Toy", weight:[3,4], height:[20,25], neck:[25,33], chest:[35,48], coat:"Long silky", flags:[], pop:2, regions:{n:2,w:3,s:2,e:2}, heat:3, care:{life:[12,15],shed:1,groom:5,drool:1,skin:3,train:3,bodyLen:[30,38]}, growth:"Adult girth ~8–10 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts,SRC.artful], beh:{pull:1,energy:2,escape:1,clip:"Back-clip harness"}, notes:"Long coat — avoid velcro closures." },
+  { name:"Pomeranian", group:"Toy", weight:[1.9,3.5], height:[18,30], neck:[22,33], chest:[38,50], coat:"Dense double", flags:["coatLoft"], pop:4, regions:{n:4,w:4,s:4,e:4}, heat:2, care:{life:[12,16],shed:4,groom:4,drool:1,skin:2,train:3,bodyLen:[24,32]}, growth:"Adult girth ~10 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts,SRC.artful], beh:{pull:1,energy:3,escape:2,clip:"Back-clip harness"}, notes:"Coat adds 2–4 cm apparent girth — size on compressed measurement." },
+  { name:"Indian Spitz", group:"Native", weight:[5,10], height:[22,37], neck:[28,38], chest:[45,60], coat:"Dense double", flags:["coatLoft"], pop:4, regions:{n:4,w:4,s:4,e:4}, heat:3, care:{life:[10,14],shed:4,groom:3,drool:1,skin:2,train:4,bodyLen:[30,45]}, growth:"Adult girth ~10–12 mo", conf:{neck:"C",chest:"B",wt:"B",ht:"B"}, src:[SRC.kci,SRC.est], beh:{pull:2,energy:3,escape:2,clip:"Back-clip harness"}, notes:"Ubiquitous Indian household breed; two size varieties (smaller/greater)." },
+  { name:"Shih Tzu", huft:true, group:"Small", weight:[4,7.5], height:[20,28], neck:[25,35], chest:[40,55], coat:"Long double", flags:["brachy"], pop:5, regions:{n:5,w:5,s:5,e:4}, heat:2, care:{life:[10,16],shed:1,groom:5,drool:1,skin:3,train:2,bodyLen:[28,38]}, growth:"Adult girth ~10 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts,SRC.artful], beh:{pull:1,energy:2,escape:1,clip:"Back-clip, brachy Y-front cut"}, notes:"Brachycephalic — collar for tags only; walk on harness." },
+  { name:"Lhasa Apso", group:"Small", weight:[5,8], height:[25,28], neck:[28,38], chest:[42,56], coat:"Long double", flags:[], pop:3, regions:{n:3,w:3,s:2,e:3}, heat:2, care:{life:[12,15],shed:2,groom:5,drool:1,skin:2,train:2,bodyLen:[32,40]}, growth:"Adult girth ~10–12 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts], beh:{pull:1,energy:2,escape:1,clip:"Back-clip harness"}, notes:"Heavy floor-length coat — snag-free hardware." },
+  { name:"Pug", group:"Small", weight:[6,9], height:[25,33], neck:[30,40], chest:[45,60], coat:"Short", flags:["brachy","thickNeck"], pop:4, regions:{n:4,w:4,s:4,e:3}, heat:1, care:{life:[12,15],shed:4,groom:2,drool:2,skin:4,train:2,bodyLen:[30,40]}, growth:"Adult girth ~10–12 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts], beh:{pull:2,energy:2,escape:2,clip:"Back-clip, wide brachy cut"}, notes:"Neck ≈ head circumference — collars slip off. Harness only. Barrel chest, short strap-spacing." },
+  { name:"Dachshund (Standard)", group:"Small", weight:[7,14], height:[20,27], neck:[28,40], chest:[40,56], coat:"Short", flags:["deepChest","longBack"], pop:3, regions:{n:3,w:4,s:4,e:3}, heat:4, care:{life:[12,16],shed:3,groom:2,drool:1,skin:2,train:3,bodyLen:[40,55]}, growth:"Adult girth ~12 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts], beh:{pull:2,energy:3,escape:2,clip:"Back-clip, long-body cut"}, notes:"Deep keel chest + long back — Y-front harness, girth strap near elbow." },
+  { name:"Jack Russell Terrier", group:"Small", weight:[6,8], height:[25,30], neck:[25,36], chest:[40,53], coat:"Short/Wire", flags:[], pop:2, regions:{n:2,w:2,s:2,e:1}, heat:4, care:{life:[13,16],shed:3,groom:2,drool:1,skin:2,train:4,bodyLen:[30,38]}, growth:"Adult girth ~10–12 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts], beh:{pull:3,energy:5,escape:3,clip:"Dual-clip"}, notes:"High energy — reinforced D-ring stitching." },
+  { name:"French Bulldog", group:"Small", weight:[8,14], height:[28,33], neck:[32,43], chest:[50,65], coat:"Short", flags:["brachy","thickNeck"], pop:3, regions:{n:3,w:4,s:3,e:2}, heat:1, care:{life:[10,12],shed:3,groom:2,drool:3,skin:4,train:3,bodyLen:[35,45]}, growth:"Adult girth ~12 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts], beh:{pull:2,energy:2,escape:1,clip:"Back-clip, wide neck opening"}, notes:"Brachycephalic + wide chest, short neck — harness only." },
+  { name:"Beagle", huft:true, group:"Medium", weight:[9,16], height:[33,41], neck:[30,45], chest:[50,66], coat:"Short", flags:["slipRisk"], pop:5, regions:{n:4,w:5,s:5,e:4}, heat:4, care:{life:[12,15],shed:3,groom:2,drool:1,skin:2,train:3,bodyLen:[40,50]}, growth:"Adult girth ~12 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts,SRC.artful], beh:{pull:3,energy:4,escape:4,clip:"Front-clip or martingale"}, notes:"Notorious collar-slipper; scent-driven puller." },
+  { name:"Cocker Spaniel", group:"Medium", weight:[12,15], height:[36,43], neck:[30,43], chest:[50,65], coat:"Long feathered", flags:[], pop:4, regions:{n:3,w:4,s:4,e:3}, heat:3, care:{life:[12,15],shed:3,groom:4,drool:2,skin:3,train:4,bodyLen:[42,52]}, growth:"Adult girth ~12 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts], beh:{pull:2,energy:3,escape:2,clip:"Back-clip harness"}, notes:"Feathered ears/legs — rolled or padded edges prevent coat wear." },
+  { name:"Shiba Inu", group:"Medium", weight:[8,11], height:[33,43], neck:[30,40], chest:[48,62], coat:"Dense double", flags:["slipRisk","coatLoft"], pop:1, regions:{n:1,w:1,s:1,e:1}, heat:2, care:{life:[12,15],shed:4,groom:3,drool:1,skin:2,train:3,bodyLen:[38,48]}, growth:"Adult girth ~12 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts], beh:{pull:3,energy:4,escape:5,clip:"3-strap escape-proof harness"}, notes:"Escape artist — 3-point harness advisable." },
+  { name:"Pembroke Corgi", group:"Medium", weight:[10,14], height:[25,30], neck:[33,43], chest:[55,68], coat:"Double", flags:["longBack"], pop:2, regions:{n:2,w:2,s:2,e:1}, heat:3, care:{life:[12,13],shed:4,groom:3,drool:1,skin:2,train:4,bodyLen:[45,60]}, growth:"Adult girth ~12 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts,SRC.artful], beh:{pull:2,energy:4,escape:2,clip:"Back-clip harness"}, notes:"Low height but medium girth — girth-based sizing, not weight." },
+  { name:"English Bulldog", group:"Medium", weight:[18,25], height:[31,40], neck:[45,56], chest:[65,81], coat:"Short", flags:["brachy","thickNeck"], pop:2, regions:{n:2,w:3,s:2,e:2}, heat:1, care:{life:[8,10],shed:3,groom:2,drool:4,skin:5,train:2,bodyLen:[45,55]}, growth:"Adult girth ~14–16 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts], beh:{pull:3,energy:2,escape:1,clip:"Back-clip, wide straps"}, notes:"Neck girth rivals large breeds despite medium height. Harness only." },
+  { name:"Amstaff / Pit-type", group:"Medium", weight:[17,27], height:[43,53], neck:[40,53], chest:[60,78], coat:"Short", flags:["thickNeck","puller"], pop:3, regions:{n:3,w:3,s:3,e:2}, heat:4, care:{life:[12,16],shed:2,groom:1,drool:2,skin:3,train:4,bodyLen:[50,60]}, growth:"Adult girth ~14 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts], beh:{pull:5,energy:4,escape:2,clip:"Dual-clip + load-rated hardware"}, notes:"Very strong puller — heavy-duty hardware, bar-tack stitching." },
+  { name:"Border Collie", group:"Medium", weight:[14,20], height:[46,56], neck:[35,46], chest:[55,70], coat:"Double", flags:[], pop:2, regions:{n:2,w:2,s:2,e:1}, heat:3, care:{life:[12,15],shed:3,groom:3,drool:1,skin:2,train:5,bodyLen:[50,62]}, growth:"Adult girth ~12–14 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts,SRC.artful], beh:{pull:3,energy:5,escape:3,clip:"Dual-clip"}, notes:"Athletic — full range of shoulder motion in harness cut." },
+  { name:"Indian Pariah (Indie)", group:"Native", weight:[15,30], height:[46,64], neck:[35,48], chest:[55,75], coat:"Short", flags:["deepChest","slipRisk"], pop:5, regions:{n:5,w:5,s:5,e:4}, heat:5, care:{life:[13,16],shed:2,groom:1,drool:1,skin:2,train:4,bodyLen:[52,68]}, growth:"Adult girth ~12–14 mo", conf:{neck:"C",chest:"B",wt:"B",ht:"B"}, src:[SRC.wiki,SRC.est,SRC.ind], beh:{pull:3,energy:4,escape:4,clip:"Martingale / H-harness, dual-clip"}, notes:"India's most adopted dog. Lean, deep-chested, wedge head — backs out of flat collars. Wide individual variation — the single most important breed for HUFT fit-lab measurement." },
+  { name:"Dalmatian", group:"Medium", weight:[20,32], height:[48,61], neck:[35,50], chest:[60,76], coat:"Short", flags:["deepChest"], pop:2, regions:{n:2,w:2,s:2,e:2}, heat:4, care:{life:[11,13],shed:4,groom:1,drool:1,skin:3,train:4,bodyLen:[55,65]}, growth:"Adult girth ~14 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts], beh:{pull:4,energy:5,escape:3,clip:"Front-clip"}, notes:"Deep chest, tucked waist — belly strap rides forward." },
+  { name:"Siberian Husky", huft:true, group:"Medium", weight:[16,27], height:[51,60], neck:[40,55], chest:[55,75], coat:"Heavy double", flags:["puller","slipRisk","coatLoft"], pop:4, regions:{n:4,w:3,s:3,e:3}, heat:1, care:{life:[12,15],shed:5,groom:3,drool:1,skin:2,train:3,bodyLen:[52,62]}, growth:"Adult girth ~14–16 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts], beh:{pull:5,energy:5,escape:5,clip:"Dual-clip escape-proof + rated hardware"}, notes:"Bred to pull; slips flat collars. Coat loft adds 3–5 cm apparent girth." },
+  { name:"Samoyed", group:"Medium", weight:[16,30], height:[48,60], neck:[40,56], chest:[60,80], coat:"Heavy double", flags:["coatLoft","puller"], pop:2, regions:{n:2,w:2,s:1,e:1}, heat:1, care:{life:[12,14],shed:5,groom:5,drool:2,skin:2,train:3,bodyLen:[52,62]}, growth:"Adult girth ~14–16 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts], beh:{pull:4,energy:4,escape:3,clip:"Dual-clip"}, notes:"Extreme coat loft — measure compressed; light coat marks easily." },
+  { name:"Chow Chow", group:"Medium", weight:[20,32], height:[43,51], neck:[50,61], chest:[65,85], coat:"Heavy double", flags:["thickNeck","coatLoft"], pop:2, regions:{n:2,w:2,s:1,e:1}, heat:1, care:{life:[8,10],shed:5,groom:5,drool:2,skin:3,train:2,bodyLen:[48,58]}, growth:"Adult girth ~14–16 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts], beh:{pull:3,energy:2,escape:2,clip:"Step-in harness"}, notes:"Mane makes neck sizing unreliable — step-in harness preferred." },
+  { name:"Boxer", group:"Large", weight:[25,32], height:[53,63], neck:[40,55], chest:[65,85], coat:"Short", flags:["deepChest","brachy"], pop:3, regions:{n:4,w:4,s:3,e:3}, heat:2, care:{life:[10,12],shed:2,groom:1,drool:4,skin:3,train:4,bodyLen:[55,68]}, growth:"Adult girth ~16 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts,SRC.artful], beh:{pull:4,energy:4,escape:2,clip:"Front-clip"}, notes:"Deep chest, mildly brachycephalic — chest-led sizing." },
+  { name:"Labrador Retriever", huft:true, group:"Large", weight:[25,36], height:[55,62], neck:[45,60], chest:[65,90], coat:"Short double", flags:["puller"], pop:5, regions:{n:5,w:5,s:5,e:5}, heat:4, care:{life:[10,14],shed:4,groom:1,drool:2,skin:2,train:5,bodyLen:[58,70]}, growth:"Adult girth ~15–18 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts,SRC.ind], beh:{pull:4,energy:4,escape:2,clip:"Front- or dual-clip"}, notes:"India's #1 breed. Indian lines often heavier-set than AKC standard — bias upper end." },
+  { name:"Golden Retriever", huft:true, group:"Large", weight:[25,34], height:[51,61], neck:[40,58], chest:[65,90], coat:"Long double", flags:["coatLoft"], pop:5, regions:{n:5,w:5,s:5,e:4}, heat:3, care:{life:[10,12],shed:5,groom:4,drool:2,skin:2,train:5,bodyLen:[56,68]}, growth:"Adult girth ~15–18 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts,SRC.artful], beh:{pull:3,energy:4,escape:2,clip:"Back- or front-clip"}, notes:"Feathering wears under narrow straps — ≥2.5 cm webbing." },
+  { name:"German Shepherd", huft:true, group:"Large", weight:[22,40], height:[55,65], neck:[45,60], chest:[65,85], coat:"Double", flags:[], pop:5, regions:{n:5,w:4,s:4,e:4}, heat:3, care:{life:[9,13],shed:5,groom:3,drool:2,skin:3,train:5,bodyLen:[58,72]}, growth:"Adult girth ~15–18 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts,SRC.ind,SRC.artful], beh:{pull:4,energy:4,escape:2,clip:"Dual-clip"}, notes:"Sloped topline — back-clip position sits rearward." },
+  { name:"Doberman", group:"Large", weight:[27,45], height:[61,72], neck:[40,55], chest:[65,85], coat:"Short", flags:["deepChest","slipRisk"], pop:4, regions:{n:4,w:3,s:4,e:3}, heat:4, care:{life:[10,13],shed:2,groom:1,drool:2,skin:3,train:5,bodyLen:[62,75]}, growth:"Adult girth ~16–18 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts], beh:{pull:4,energy:4,escape:4,clip:"Martingale + dual-clip harness"}, notes:"Neck barely wider than head — flat collars slip; martingale standard." },
+  { name:"Belgian Malinois", group:"Large", weight:[20,30], height:[56,66], neck:[40,52], chest:[60,75], coat:"Short double", flags:[], pop:2, regions:{n:2,w:2,s:2,e:1}, heat:4, care:{life:[12,14],shed:3,groom:1,drool:1,skin:2,train:5,bodyLen:[58,70]}, growth:"Adult girth ~15–18 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts], beh:{pull:4,energy:5,escape:3,clip:"Dual-clip"}, notes:"Working breed — growing in Indian security/K9 segment." },
+  { name:"Rottweiler", group:"Large", weight:[35,60], height:[56,69], neck:[55,70], chest:[75,95], coat:"Short double", flags:["thickNeck","puller"], pop:4, regions:{n:4,w:4,s:4,e:3}, heat:3, care:{life:[8,10],shed:3,groom:1,drool:3,skin:2,train:4,bodyLen:[60,72]}, growth:"Adult girth ~18 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts,SRC.ind], beh:{pull:5,energy:3,escape:2,clip:"Dual-clip + load-rated hardware"}, notes:"Massive neck — collar and chest sizes converge; load-rated hardware essential." },
+  { name:"Great Dane", group:"Giant", weight:[45,90], height:[71,86], neck:[50,66], chest:[80,110], coat:"Short", flags:["deepChest"], pop:3, regions:{n:3,w:2,s:3,e:2}, heat:3, care:{life:[8,10],shed:2,groom:1,drool:4,skin:3,train:4,bodyLen:[72,90]}, growth:"Adult girth ~18–24 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts], beh:{pull:4,energy:3,escape:2,clip:"Dual-clip"}, notes:"Chest depth extreme relative to waist — long adjustment tails needed." },
+  { name:"Saint Bernard", group:"Giant", weight:[60,120], height:[65,90], neck:[60,81], chest:[85,110], coat:"Heavy double", flags:["coatLoft"], pop:2, regions:{n:3,w:1,s:1,e:2}, heat:1, care:{life:[8,10],shed:5,groom:4,drool:5,skin:3,train:3,bodyLen:[70,90]}, growth:"Adult girth ~18–24 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts], beh:{pull:4,energy:2,escape:1,clip:"Back-clip + rated hardware"}, notes:"Popular in North India hills — top of every size curve." },
+  { name:"Cane Corso", group:"Giant", weight:[40,50], height:[58,70], neck:[55,70], chest:[80,95], coat:"Short", flags:["thickNeck","puller"], pop:1, regions:{n:2,w:2,s:1,e:1}, heat:3, care:{life:[9,12],shed:2,groom:1,drool:4,skin:3,train:4,bodyLen:[62,75]}, growth:"Adult girth ~18–24 mo", conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts], beh:{pull:5,energy:3,escape:2,clip:"Dual-clip + load-rated hardware"}, notes:"Rising in metros — mastiff neck-to-chest ratio." },
+  { name:"Rajapalayam", group:"Native", weight:[22,42], height:[65,75], neck:[40,52], chest:[60,75], coat:"Short fine", flags:["deepChest"], pop:2, regions:{n:1,w:1,s:4,e:0}, heat:5, care:{life:[10,12],shed:1,groom:1,drool:1,skin:5,train:3,bodyLen:[62,75]}, growth:"Adult girth ~16–18 mo", conf:{neck:"C",chest:"A",wt:"B",ht:"B"}, src:[SRC.tanuvas,SRC.kci,SRC.wiki], beh:{pull:4,energy:4,escape:4,clip:"Martingale + dual-clip"}, notes:"TANUVAS-measured adult chest 63–68 cm. Heavier-boned sighthound; pink skin — soft linings, no dye transfer." },
+  { name:"Mudhol / Caravan Hound", group:"Native", weight:[20,28], height:[64,72], neck:[33,45], chest:[58,74], coat:"Short/Silky", flags:["deepChest","slipRisk"], pop:2, regions:{n:1,w:2,s:4,e:0}, heat:5, care:{life:[12,15],shed:1,groom:1,drool:1,skin:4,train:3,bodyLen:[62,74]}, growth:"Adult girth ~16 mo", conf:{neck:"C",chest:"C",wt:"B",ht:"B"}, src:[SRC.kci,SRC.wiki,SRC.est], beh:{pull:3,energy:4,escape:5,clip:"Martingale / 3-strap harness"}, notes:"Classic sighthound: head narrower than neck — flat collars useless." },
+  { name:"Chippiparai", group:"Native", weight:[15,20], height:[57,63], neck:[30,42], chest:[54,68], coat:"Short", flags:["deepChest","slipRisk"], pop:1, regions:{n:0,w:0,s:3,e:0}, heat:5, care:{life:[12,15],shed:1,groom:1,drool:1,skin:4,train:3,bodyLen:[55,65]}, growth:"Adult girth ~14–16 mo", conf:{neck:"C",chest:"C",wt:"B",ht:"B"}, src:[SRC.kci,SRC.est], beh:{pull:3,energy:4,escape:5,clip:"Martingale"}, notes:"Tamil Nadu sighthound — extreme chest-to-waist taper." },
+  { name:"Kanni", group:"Native", weight:[14,20], height:[56,64], neck:[30,40], chest:[56,68], coat:"Short", flags:["deepChest","slipRisk"], pop:1, regions:{n:0,w:0,s:3,e:0}, heat:5, care:{life:[12,16],shed:1,groom:1,drool:1,skin:4,train:3,bodyLen:[55,65]}, growth:"Adult girth ~14–16 mo", conf:{neck:"C",chest:"A",wt:"B",ht:"B"}, src:[SRC.tanuvas,SRC.kci], beh:{pull:3,energy:4,escape:5,clip:"Martingale"}, notes:"Study-measured chest 61–67 cm (male). Sighthound geometry." },
+  { name:"Kombai", group:"Native", weight:[14,23], height:[43,60], neck:[36,48], chest:[55,70], coat:"Short", flags:["puller"], pop:1, regions:{n:0,w:0,s:3,e:0}, heat:5, care:{life:[12,15],shed:1,groom:1,drool:1,skin:3,train:3,bodyLen:[48,60]}, growth:"Adult girth ~14–16 mo", conf:{neck:"C",chest:"C",wt:"B",ht:"B"}, src:[SRC.kci,SRC.est], beh:{pull:4,energy:4,escape:3,clip:"Dual-clip + rated hardware"}, notes:"Muscular guardian — strong lunge loads on hardware." },
+  { name:"Rampur Greyhound", group:"Native", weight:[22,30], height:[56,75], neck:[33,46], chest:[60,76], coat:"Short", flags:["deepChest","slipRisk"], pop:1, regions:{n:3,w:1,s:0,e:1}, heat:5, care:{life:[11,14],shed:1,groom:1,drool:1,skin:4,train:3,bodyLen:[60,75]}, growth:"Adult girth ~16 mo", conf:{neck:"C",chest:"C",wt:"B",ht:"B"}, src:[SRC.kci,SRC.wiki,SRC.est], beh:{pull:3,energy:4,escape:5,clip:"Martingale"}, notes:"North-Indian sighthound — martingale territory." },
+  { name:"Himalayan Sheepdog (Gaddi)", group:"Native", weight:[25,40], height:[51,66], neck:[48,64], chest:[70,90], coat:"Heavy double", flags:["coatLoft","thickNeck"], pop:1, regions:{n:3,w:0,s:0,e:1}, heat:1, care:{life:[10,11],shed:5,groom:4,drool:2,skin:2,train:3,bodyLen:[55,68]}, growth:"Adult girth ~18 mo", conf:{neck:"C",chest:"C",wt:"C",ht:"B"}, src:[SRC.kci,SRC.est], beh:{pull:4,energy:3,escape:2,clip:"Back-clip + rated hardware"}, notes:"Hill guardian — coat loft extreme; measure compressed." },
+  { name:"Bully Kutta (Indian Mastiff)", group:"Native", weight:[60,90], height:[75,90], neck:[60,80], chest:[85,110], coat:"Short", flags:["thickNeck","puller"], pop:1, regions:{n:2,w:1,s:1,e:0}, heat:4, care:{life:[8,11],shed:2,groom:1,drool:4,skin:3,train:2,bodyLen:[75,92]}, growth:"Adult girth ~20–24 mo", conf:{neck:"C",chest:"C",wt:"C",ht:"B"}, src:[SRC.wiki,SRC.est], beh:{pull:5,energy:3,escape:2,clip:"Dual-clip, custom/XXL rated"}, notes:"Largest Indian breed — beyond most standard size curves; XXL/custom." },
+  { name:"Standard Poodle", group:"Large", huft:false, weight:[20,32], height:[45,62], neck:[38,50], chest:[60,75], coat:"Curly", flags:[], pop:2, growth:"Adult girth ~14–16 mo", regions:{n:3,w:3,s:3,e:2}, heat:3, care:{life:[12,15],shed:1,groom:5,drool:1,skin:2,train:5,bodyLen:[55,65]}, conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts,"HUFT breed guide — hypoallergenic pick for metros"], beh:{pull:2,energy:4,escape:1,clip:"Back-clip harness"}, notes:"Low-shed coat popular with allergy-prone metro families; coat mats under straps — smooth webbing, groom-friendly cuts." },
+  { name:"Basset Hound", group:"Medium", weight:[20,29], height:[28,38], neck:[40,50], chest:[60,75], coat:"Short", flags:["longBack","deepChest"], pop:2, growth:"Adult girth ~14–16 mo", regions:{n:2,w:2,s:2,e:2}, heat:3, care:{life:[10,12],shed:3,groom:2,drool:4,skin:3,train:2,bodyLen:[55,70]}, conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts,"HUFT breed guide",SRC.artful], beh:{pull:2,energy:2,escape:2,clip:"Back-clip, long-body cut"}, notes:"Heavy bone + barrel chest on short legs — girth-based sizing essential; drool-resistant materials near chest plate." },
+  { name:"Bullmastiff", group:"Giant", weight:[41,59], height:[61,68], neck:[55,70], chest:[80,100], coat:"Short", flags:["thickNeck","puller"], pop:2, growth:"Adult girth ~18–24 mo", regions:{n:3,w:2,s:2,e:1}, heat:2, care:{life:[8,10],shed:2,groom:1,drool:4,skin:3,train:3,bodyLen:[65,80]}, conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts,"HUFT breed guide — gated-community guard segment"], beh:{pull:5,energy:2,escape:1,clip:"Dual-clip + load-rated hardware"}, notes:"Delhi-NCR/Pune guard-dog segment. Heavy drool — quick-dry webbing; hardware must be load-rated." },
+  { name:"Tibetan Mastiff", group:"Giant", weight:[34,73], height:[61,76], neck:[55,75], chest:[80,105], coat:"Heavy double", flags:["coatLoft","thickNeck"], pop:1, growth:"Adult girth ~24 mo", regions:{n:2,w:1,s:1,e:1}, heat:1, care:{life:[12,15],shed:5,groom:4,drool:2,skin:2,train:2,bodyLen:[65,80]}, conf:{neck:"C",chest:"B",wt:"B",ht:"B"}, src:["HUFT breed guide — hills only",SRC.est], beh:{pull:4,energy:2,escape:2,clip:"Back-clip + rated hardware"}, notes:"Himalayan-region luxury breed. Extreme mane loft — neck sizing unreliable, size on compressed chest." },
+  { name:"Alaskan Malamute", group:"Large", weight:[34,39], height:[56,66], neck:[45,60], chest:[70,90], coat:"Heavy double", flags:["coatLoft","puller","slipRisk"], pop:1, growth:"Adult girth ~18 mo", regions:{n:2,w:1,s:1,e:1}, heat:1, care:{life:[10,14],shed:5,groom:4,drool:1,skin:2,train:3,bodyLen:[58,70]}, conf:{neck:"B",chest:"B",wt:"A",ht:"A"}, src:[SRC.akc,SRC.charts,"HUFT breed guide — high-altitude only"], beh:{pull:5,energy:4,escape:4,clip:"Dual-clip escape-proof + rated hardware"}, notes:"Sled-puller loads exceed Husky. Hills market only; plains ownership discouraged." },
+  { name:"Jonangi", group:"Native", weight:[12,20], height:[40,50], neck:[30,40], chest:[50,64], coat:"Short", flags:["deepChest"], pop:1, growth:"Adult girth ~12–14 mo", regions:{n:0,w:0,s:2,e:2}, heat:5, care:{life:[10,14],shed:1,groom:1,drool:1,skin:3,train:4,bodyLen:[45,58]}, conf:{neck:"C",chest:"C",wt:"B",ht:"B"}, src:["HUFT breed guide — Andhra coastal heritage breed",SRC.est], beh:{pull:2,energy:4,escape:3,clip:"Back-clip harness"}, notes:"Andhra duck-herding swimmer — quick-dry, water-friendly materials suit this breed; unusually deep chest for its size." },
+  { name:"Pandikona", group:"Native", weight:[18,26], height:[48,60], neck:[34,45], chest:[55,70], coat:"Short coarse", flags:["slipRisk"], pop:1, growth:"Adult girth ~14 mo", regions:{n:0,w:0,s:2,e:0}, heat:5, care:{life:[12,15],shed:1,groom:1,drool:1,skin:3,train:2,bodyLen:[52,65]}, conf:{neck:"C",chest:"C",wt:"C",ht:"B"}, src:["HUFT breed guide — Kurnool (AP) guardian breed",SRC.est], beh:{pull:3,energy:4,escape:3,clip:"Martingale / secure H-harness"}, notes:"Independent village guardian, mostly outdoor-kept — rugged, sun-fast materials; wedge head slips flat collars." },
+  { name:"Banjara Hound", group:"Native", weight:[20,29], height:[55,70], neck:[33,45], chest:[58,74], coat:"Short", flags:["deepChest","slipRisk"], pop:1, growth:"Adult girth ~16 mo", regions:{n:1,w:2,s:1,e:0}, heat:5, care:{life:[10,14],shed:1,groom:1,drool:1,skin:4,train:3,bodyLen:[60,75]}, conf:{neck:"C",chest:"C",wt:"C",ht:"B"}, src:["HUFT breed guide — Maharashtra nomadic sighthound",SRC.est], beh:{pull:3,energy:4,escape:5,clip:"Martingale"}, notes:"Maharashtra/Rajasthan sighthound — full sighthound geometry: martingale or 3-strap only." },
+
+];
+
+const FLAG_LABELS = {
+  brachy:{label:"Brachycephalic",tip:"Flat-faced: walk on harness, collar for ID only"},
+  thickNeck:{label:"Thick neck",tip:"Neck girth unusually large for height"},
+  deepChest:{label:"Deep chest",tip:"Big chest-to-waist taper; straps migrate"},
+  slipRisk:{label:"Slip risk",tip:"Backs out of flat collars; martingale/3-strap"},
+  puller:{label:"Strong puller",tip:"Load-rated hardware & bar-tack stitching"},
+  longBack:{label:"Long back",tip:"Keep girth strap near elbow"},
+  coatLoft:{label:"Coat loft",tip:"Fur adds 2–5 cm apparent girth"},
+};
+const GROUPS = ["All","Toy","Small","Medium","Large","Giant","Native"];
+
+/* HUFT retail zones — aligned to store/trainer region mapping.
+   Demand 0–5 per zone is INDICATIVE (market reports + HUFT blog city
+   tips + climate logic). Replace with PawSuite/ERP sales data when available. */
+const REGIONS = {
+  n: { key:"n", label:"North", cities:"Delhi-NCR · Jaipur · Lucknow · Tri-City" },
+  w: { key:"w", label:"West", cities:"Mumbai · Pune · Gujarat" },
+  s: { key:"s", label:"South", cities:"Bangalore · Chennai · Hyderabad" },
+  e: { key:"e", label:"East", cities:"Kolkata · North-East" },
+};
+function heatInfo(h){
+  if(h<=1) return {label:`Heat ${h}/5 — very low`, tip:"AC-home breed. Apparel: max-airflow mesh only; avoid neoprene/padding.", warn:true};
+  if(h===2) return {label:`Heat ${h}/5 — low`, tip:"Struggles in Indian summers. Apparel: breathable mesh, light colours.", warn:true};
+  if(h===3) return {label:`Heat ${h}/5 — moderate`, tip:"OK with shade + timing. Standard breathable builds.", warn:false};
+  return {label:`Heat ${h}/5 — good`, tip:"Handles Indian heat well. Full material range viable.", warn:false};
+}
+
+/* ---------- storage adapter (swap for Supabase later) ---------- */
+const store = {
+  get(k, fb){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; }catch(e){ return fb; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } },
+};
+const KEY_PRODUCTS = "huft_fit_products";
+const KEY_FEEDBACK = "huft_fit_feedback";
+const KEY_CUSTOM = "huft_fit_custom_breeds";
+
+/* ---------- fit maths ---------- */
+function overlapPct(breed, prod){ const lo=Math.max(breed[0],prod[0]), hi=Math.min(breed[1],prod[1]); return hi<=lo?0:(hi-lo)/(breed[1]-breed[0]); }
+function gradeOf(p){ return p>=0.9?"full":p>=0.55?"good":p>0?"partial":"none"; }
+const GRADE = {
+  full:{label:"Full fit",color:"#00854D",bg:"#E5F9F0"},
+  good:{label:"Good fit",color:"#7CA82B",bg:"#F3F9E6"},
+  partial:{label:"Partial",color:"#B47500",bg:"#FEF1E5"},
+  none:{label:"No fit",color:"#9699A6",bg:"#EAECF2"},
+};
+function widthAdvice(nMax){ return nMax<=30?"1–1.5 cm webbing":nMax<=45?"1.5–2.5 cm webbing":nMax<=60?"2.5–3.8 cm webbing":"3.8–5 cm webbing"; }
+function pullHardware(p){ return p>=5?"Load-rated metal hardware, bar-tack + box-X stitching, ≥3.8 cm web":p>=4?"Metal D-rings, bar-tack stitching, ≥2.5 cm web":p>=3?"Quality acetal or metal hardware, reinforced joins":"Standard hardware acceptable"; }
+
+const MONO = { fontFamily:"'IBM Plex Mono', ui-monospace, monospace" };
+
+/* ---------- small components ---------- */
+const CONF_ROWS=[["A","Published standard or measured field study","± 2–3 cm","#00854D","#E5F9F0"],["B","Aggregated manufacturer sizing charts","± 4–6 cm","#B47500","#FEF1E5"],["C","Estimated from build — fit-lab validation needed","± 8 cm +","#E2445C","#FCE9EC"]];
+function ConfBadge({tier,label}){
+  const [hov,setHov]=useState(false);
+  const c=CONF[tier];
+  return (
+    <span style={{position:"relative",display:"inline-flex"}} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)} onClick={e=>{e.stopPropagation();setHov(h=>!h);}}>
+      <span style={{...MONO,fontSize:10,fontWeight:600,padding:"1px 6px",borderRadius:4,background:c.bg,color:c.color,border:`1px solid ${c.color}44`,cursor:"help"}}>{tier}</span>
+      {hov && (
+        <span style={{position:"absolute",bottom:"calc(100% + 8px)",left:"50%",transform:"translateX(-50%)",width:236,background:"#fff",border:"1px solid #E6E9EF",borderRadius:8,boxShadow:"0 8px 28px rgba(50,51,56,0.22)",padding:"10px 11px",zIndex:60,textAlign:"left",whiteSpace:"normal",cursor:"default"}}>
+          <span style={{display:"block",fontSize:11.5,fontWeight:600,color:"#323338",marginBottom:6,fontFamily:"'Rubik',sans-serif"}}>{label?label+" — ":""}How sure are we?</span>
+          {CONF_ROWS.map(([t,desc,tol,col,bg])=>(
+            <span key={t} style={{display:"flex",gap:7,alignItems:"flex-start",padding:"3px 0",opacity:t===tier?1:0.55}}>
+              <span style={{...MONO,fontSize:9.5,fontWeight:700,padding:"1px 5px",borderRadius:3,background:bg,color:col,flexShrink:0,marginTop:1}}>{t}</span>
+              <span style={{fontSize:10.5,lineHeight:1.35,color:"#40434E",fontFamily:"'Rubik',sans-serif"}}>{desc} <b style={{color:col}}>{tol}</b></span>
+            </span>
+          ))}
+          <span style={{display:"block",fontSize:10,color:"#9699A6",marginTop:6,lineHeight:1.4,fontFamily:"'Rubik',sans-serif"}}>Indian lines often run heavier than international standards.</span>
+          <span style={{position:"absolute",top:"100%",left:"50%",transform:"translateX(-50%)",width:0,height:0,borderLeft:"7px solid transparent",borderRight:"7px solid transparent",borderTop:"7px solid #fff"}}/>
+        </span>
+      )}
+    </span>
+  );
+}
+function Chip({text,tip,tone}){ const t = tone==="warn"?{bg:"#FEF1E5",fg:"#BA4511",bd:"#FFBE92"}:{bg:"#F0F1F6",fg:"#565A6E",bd:"#C3C6D4"};
+  return <span title={tip} style={{fontSize:10.5,padding:"2px 7px",borderRadius:999,background:t.bg,color:t.fg,border:`1px solid ${t.bd}`,whiteSpace:"nowrap"}}>{text}</span>; }
+function Meter({label,val,color}){ return (
+  <div style={{flex:1,minWidth:86}}>
+    <div style={{fontSize:10,color:"#9699A6",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:3}}>{label} <b style={{color:"#323338"}}>{val}/5</b></div>
+    <div style={{display:"flex",gap:2}}>{[1,2,3,4,5].map(i=><div key={i} style={{flex:1,height:6,borderRadius:3,background:i<=val?(color||"#FF6D1F"):"#E6E9EF"}}/>)}</div>
+  </div>); }
+function TapeBar({breedRange,prodRange,domain}){
+  const [dLo,dHi]=domain, span=dHi-dLo, pct=v=>Math.max(0,Math.min(100,((v-dLo)/span)*100));
+  const bLo=pct(breedRange[0]),bHi=pct(breedRange[1]),pLo=pct(prodRange[0]),pHi=pct(prodRange[1]);
+  const oLo=Math.max(bLo,pLo),oHi=Math.min(bHi,pHi);
+  return (
+    <div style={{position:"relative",height:26,borderRadius:4,overflow:"hidden",background:"#F6C445",backgroundImage:"repeating-linear-gradient(90deg, rgba(50,51,56,0.55) 0 1px, transparent 1px 10%), repeating-linear-gradient(90deg, rgba(50,51,56,0.25) 0 1px, transparent 1px 2.5%)",border:"1px solid #32333822"}}>
+      <div style={{position:"absolute",top:0,bottom:0,left:bLo+"%",width:(bHi-bLo)+"%",background:"#32333814",borderLeft:"2px solid #323338",borderRight:"2px solid #323338"}}/>
+      <div style={{position:"absolute",top:6,bottom:6,left:pLo+"%",width:Math.max(0.5,pHi-pLo)+"%",background:"#FF6D1F",borderRadius:2,opacity:0.85}}/>
+      {oHi>oLo && <div style={{position:"absolute",top:6,bottom:6,left:oLo+"%",width:(oHi-oLo)+"%",background:"#00A25B",borderRadius:2}}/>}
+    </div>); }
+function NumBox({label,value,onChange,min=10,max=130}){ return (
+  <label style={{display:"flex",flexDirection:"column",gap:4,flex:1,minWidth:90}}>
+    <span style={{fontSize:11,letterSpacing:"0.06em",textTransform:"uppercase",color:"#676879",fontWeight:600}}>{label}</span>
+    <input type="number" inputMode="decimal" value={value} min={min} max={max} step="0.5"
+      onChange={e=>onChange(e.target.value===""?"":Number(e.target.value))}
+      style={{...MONO,fontSize:17,fontWeight:600,padding:"9px 10px",borderRadius:8,border:"1.5px solid #C3C6D4",background:"#fff",color:"#323338",width:"100%",boxSizing:"border-box"}}/>
+  </label>); }
+
+/* ---------- feedback form per breed ---------- */
+function FeedbackBox({breed,feedback,onAdd}){
+  const [open,setOpen]=useState(false);
+  const [verdict,setVerdict]=useState("good");
+  const [field,setField]=useState("overall");
+  const [text,setText]=useState("");
+  const [author,setAuthor]=useState(store.get("huft_fit_author",""));
+  const mine = feedback.filter(f=>f.breed===breed.name);
+  const submit=()=>{
+    if(!text.trim() && verdict==="bad"){ return; }
+    store.set("huft_fit_author",author);
+    onAdd({id:Date.now(),breed:breed.name,verdict,field,text:text.trim(),author:author.trim()||"anonymous",ts:new Date().toISOString()});
+    setText(""); setOpen(false);
+  };
+  return (
+    <div style={{marginTop:10,borderTop:"1px dashed #E6E9EF",paddingTop:8}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+        <button onClick={()=>setOpen(!open)} style={{border:"1px solid #C3C6D4",background:"#fff",borderRadius:7,padding:"5px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:600,color:"#565A6E"}}>
+          {open?"Close":"Rate this data"} {mine.length>0 && <span style={{color:"#FF6D1F"}}>· {mine.length} note{mine.length>1?"s":""}</span>}
+        </button>
+      </div>
+      {open && (
+        <div style={{marginTop:8,background:"#F5F6F8",borderRadius:8,padding:10}}>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+            {[["good","✓ Data looks right"],["bad","✗ Data needs fixing"]].map(([v,l])=>(
+              <button key={v} onClick={()=>setVerdict(v)} style={{padding:"5px 12px",borderRadius:999,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+                border:verdict===v?"1.5px solid #323338":"1.5px solid #E6E9EF",background:verdict===v?(v==="good"?"#E5F9F0":"#FCE9EC"):"#fff",color:verdict===v?(v==="good"?"#00A25B":"#E2445C"):"#676879"}}>{l}</button>
+            ))}
+            <select value={field} onChange={e=>setField(e.target.value)} style={{borderRadius:7,border:"1px solid #C3C6D4",padding:"4px 8px",fontSize:12,fontFamily:"inherit"}}>
+              {["overall","neck","chest","weight","height","behaviour","notes"].map(f=><option key={f} value={f}>{f}</option>)}
+            </select>
+          </div>
+          <textarea value={text} onChange={e=>setText(e.target.value)} placeholder={verdict==="bad"?"What's wrong? e.g. 'Fit-lab measured Indie neck 38–52, ours reads low'":"Optional comment…"}
+            rows={2} style={{width:"100%",boxSizing:"border-box",borderRadius:7,border:"1px solid #C3C6D4",padding:8,fontSize:13,fontFamily:"inherit",resize:"vertical"}}/>
+          <div style={{display:"flex",gap:8,marginTop:6,flexWrap:"wrap"}}>
+            <input value={author} onChange={e=>setAuthor(e.target.value)} placeholder="Your name" style={{flex:1,minWidth:120,borderRadius:7,border:"1px solid #C3C6D4",padding:"6px 8px",fontSize:12.5,fontFamily:"inherit"}}/>
+            <button onClick={submit} style={{background:"#FF6D1F",color:"#fff",border:"none",borderRadius:7,padding:"6px 16px",fontSize:12.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Submit</button>
+          </div>
+        </div>
+      )}
+      {mine.length>0 && (
+        <div style={{marginTop:6,display:"grid",gap:4}}>
+          {mine.slice(-3).reverse().map(f=>(
+            <div key={f.id} style={{fontSize:12,color:"#40434E",background:f.verdict==="good"?"#E5F9F0":"#FCE9EC",borderRadius:6,padding:"5px 9px"}}>
+              <b style={{color:f.verdict==="good"?"#00A25B":"#E2445C"}}>{f.verdict==="good"?"✓":"✗"} {f.field}</b> {f.text && `— ${f.text}`} <span style={{color:"#9699A6"}}>· {f.author} · {f.ts.slice(0,10)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------- breed card (library) ---------- */
+function BreedCard({b,feedback,onAddFeedback,onDelete,defaultOpen}){
+  const [open,setOpen]=useState(!!defaultOpen);
+  const dims=[["Neck",`${b.neck[0]}–${b.neck[1]} cm`,b.conf.neck],["Chest",`${b.chest[0]}–${b.chest[1]} cm`,b.conf.chest],["Weight",`${b.weight[0]}–${b.weight[1]} kg`,b.conf.wt],["Height",`${b.height[0]}–${b.height[1]} cm`,b.conf.ht]];
+  const bad=feedback.filter(f=>f.breed===b.name&&f.verdict==="bad").length;
+  const care=b.care||{life:[10,13],shed:3,groom:2,drool:1,skin:2,train:3,bodyLen:[Math.round(b.height[0]*1.02),Math.round(b.height[1]*1.1)]};
+  return (
+    <div style={{background:"#fff",borderRadius:8,border:b.custom?"1.5px dashed #676879":bad?"1.5px solid #F0A6B4":"1px solid #E6E9EF",marginBottom:10,overflow:"hidden"}}>
+      <button onClick={()=>setOpen(!open)} style={{display:"flex",width:"100%",justifyContent:"space-between",alignItems:"center",gap:10,padding:"13px 16px",border:"none",background:"transparent",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
+        <div style={{minWidth:0}}>
+          <div style={{fontWeight:700,fontSize:15,color:"#323338"}}>{b.name} {b.huft && <span title="HUFT shop-by-breed priority" style={{fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:999,background:"#FF6D1F",color:"#fff",verticalAlign:"middle"}}>HUFT SIX</span>} {b.custom && <span style={{fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:999,background:"#F0F1F6",color:"#565A6E",verticalAlign:"middle"}}>TEAM-ADDED</span>} {bad>0 && <span title="Team flagged data issues" style={{fontSize:11,color:"#E2445C"}}>⚑ {bad}</span>}</div>
+          <div style={{fontFamily:"'IBM Plex Mono', ui-monospace, monospace",fontSize:11.5,color:"#9699A6",marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{b.group} · neck {b.neck[0]}–{b.neck[1]} · chest {b.chest[0]}–{b.chest[1]} cm</div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+          <span style={{color:"#B47500",fontSize:12,letterSpacing:1}}>{"★".repeat(b.pop)}</span>
+          <span style={{color:"#9699A6",fontSize:16,transform:open?"rotate(180deg)":"none",transition:"transform 0.15s"}}>▾</span>
+        </div>
+      </button>
+
+      {open && <div style={{padding:"0 16px 16px"}}>
+        {onDelete && <div style={{display:"flex",justifyContent:"flex-end"}}><button onClick={()=>onDelete(b.name)} style={{border:"1px solid #E6E9EF",background:"#fff",color:"#E2445C",borderRadius:999,padding:"3px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Remove breed</button></div>}
+        <div style={{...MONO,display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(112px, 1fr))",gap:8,marginTop:6,fontSize:12.5}}>
+          {dims.map(([k,v,c])=>(
+            <div key={k} style={{background:"#F5F6F8",borderRadius:8,padding:"8px 10px"}}>
+              <div style={{fontSize:10,color:"#9699A6",textTransform:"uppercase",letterSpacing:"0.06em",display:"flex",justifyContent:"space-between",alignItems:"center"}}>{k} <ConfBadge tier={c} label={k}/></div>
+              <div style={{fontWeight:600,marginTop:2,color:"#323338"}}>{v}</div>
+            </div>
+          ))}
+          <div style={{background:"#F5F6F8",borderRadius:8,padding:"8px 10px"}}>
+            <div style={{fontSize:10,color:"#9699A6",textTransform:"uppercase",letterSpacing:"0.06em"}}>Body length <span title="Estimated from height and build — validate in fit lab" style={{cursor:"help"}}>est.</span></div>
+            <div style={{fontWeight:600,marginTop:2,color:"#323338"}}>{care.bodyLen[0]}–{care.bodyLen[1]} cm</div>
+          </div>
+          <div style={{background:"#F5F6F8",borderRadius:8,padding:"8px 10px"}}>
+            <div style={{fontSize:10,color:"#9699A6",textTransform:"uppercase",letterSpacing:"0.06em"}}>Lifespan</div>
+            <div style={{fontWeight:600,marginTop:2,color:"#323338"}}>{care.life[0]}–{care.life[1]} yrs</div>
+          </div>
+        </div>
+        <details open style={{marginTop:12}}>
+          <summary style={{fontSize:12.5,fontWeight:700,color:"#323338"}}>Leash & harness behaviour</summary>
+          <div style={{display:"flex",gap:12,flexWrap:"wrap",marginTop:8,background:"#FAFBFD",border:"1px solid #EAECF2",borderRadius:8,padding:"10px 12px"}}>
+            <Meter label="Pull force" val={b.beh.pull}/>
+            <Meter label="Energy" val={b.beh.energy} color="#B47500"/>
+            <Meter label="Escape risk" val={b.beh.escape} color="#565A6E"/>
+            <div style={{flex:"1 1 100%",fontSize:12,color:"#40434E"}}><b>Clip / gear:</b> {b.beh.clip} · <b>Hardware:</b> {pullHardware(b.beh.pull)}</div>
+          </div>
+        </details>
+        <details style={{marginTop:10}}>
+          <summary style={{fontSize:12.5,fontWeight:700,color:"#323338"}}>Coat, care & materials</summary>
+          <div style={{display:"flex",gap:12,flexWrap:"wrap",marginTop:8,background:"#FAFBFD",border:"1px solid #EAECF2",borderRadius:8,padding:"10px 12px"}}>
+            <Meter label="Shedding" val={care.shed}/>
+            <Meter label="Grooming need" val={care.groom} color="#B47500"/>
+            <Meter label="Drool" val={care.drool} color="#565A6E"/>
+            <Meter label="Skin sensitivity" val={care.skin} color="#E2445C"/>
+            <Meter label="Trainability" val={care.train} color="#00A25B"/>
+            <div style={{flex:"1 1 100%",fontSize:12,color:"#40434E",lineHeight:1.55}}>
+              {care.shed>=4 && "High shed — avoid velcro closures & plush linings that trap fur. "}
+              {care.drool>=4 && "Heavy drool — quick-dry, stain-resistant webbing near chest/neck. "}
+              {care.skin>=4 && "Sensitive skin — soft padded linings, colourfast dyes, no rough edges. "}
+              {care.groom>=4 && "High-grooming coat — snag-free hardware, rolled edges. "}
+              {care.shed<4 && care.drool<4 && care.skin<4 && care.groom<4 && "No special material constraints from coat or skin."}
+            </div>
+          </div>
+        </details>
+        <details style={{marginTop:10}}>
+          <summary style={{fontSize:12.5,fontWeight:700,color:"#323338"}}>Regional demand & climate</summary>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8,alignItems:"flex-end"}}>
+            {Object.values(REGIONS).map(r=>(
+              <div key={r.key} title={r.cities} style={{flex:1,minWidth:70,cursor:"help"}}>
+                <div style={{fontSize:10,color:"#9699A6",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:3}}>{r.label} <b style={{color:b.regions[r.key]===0?"#E2445C":"#323338"}}>{b.regions[r.key]}/5</b></div>
+                <div style={{display:"flex",gap:2}}>{[1,2,3,4,5].map(i=><div key={i} style={{flex:1,height:5,borderRadius:3,background:i<=b.regions[r.key]?"#F6C445":"#E6E9EF"}}/>)}</div>
+              </div>
+            ))}
+            <Chip text={heatInfo(b.heat).label} tip={heatInfo(b.heat).tip} tone={heatInfo(b.heat).warn?"warn":"info"}/>
+          </div>
+        </details>
+        <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:10}}>
+          <Chip text={b.coat} tone="info"/>
+          <Chip text={b.growth} tone="info"/>
+          <Chip text={widthAdvice(b.neck[1])} tone="info"/>
+          {b.flags.map(f=><Chip key={f} text={FLAG_LABELS[f].label} tip={FLAG_LABELS[f].tip} tone="warn"/>)}
+        </div>
+        <p style={{fontSize:13,color:"#40434E",margin:"9px 0 0",lineHeight:1.5}}>{b.notes}</p>
+        <details style={{marginTop:8}}>
+          <summary style={{fontSize:12,color:"#565A6E",fontWeight:600,display:"inline-flex",alignItems:"center",gap:5}}>
+            <span style={{display:"inline-block",width:16,height:16,borderRadius:4,background:"#F0F1F6",textAlign:"center",lineHeight:"16px",fontSize:10}}>ⓘ</span> Sources & confidence
+          </summary>
+          <ul style={{margin:"6px 0 0",paddingLeft:18,fontSize:12,color:"#676879",lineHeight:1.6}}>
+            {b.src.map((s,i)=><li key={i}>{s}</li>)}
+            <li style={MONO}>Tiers: A ±2–3 cm · B ±4–6 cm · C ±8 cm+ (validate in fit lab). Body length & care scores are estimates.</li>
+          </ul>
+        </details>
+        <FeedbackBox breed={b} feedback={feedback} onAdd={onAddFeedback}/>
+      </div>}
+    </div>
+  );
+}
+
+/* ---------- Ask HUFT Fit: rule-based answer engine over the data ---------- */
+const CITY_ZONE = {delhi:"n",gurgaon:"n",gurugram:"n",noida:"n",ncr:"n",jaipur:"n",lucknow:"n",chandigarh:"n","tri-city":"n",north:"n",
+  mumbai:"w",pune:"w",ahmedabad:"w",surat:"w",gujarat:"w",west:"w",
+  bangalore:"s",bengaluru:"s",chennai:"s",hyderabad:"s",kochi:"s",south:"s",
+  kolkata:"e",guwahati:"e",east:"e"};
+const ALIASES = {lab:"Labrador Retriever",labrador:"Labrador Retriever",golden:"Golden Retriever",gsd:"German Shepherd","german shepherd":"German Shepherd",alsatian:"German Shepherd",
+  indie:"Indian Pariah (Indie)",pariah:"Indian Pariah (Indie)","desi dog":"Indian Pariah (Indie)",pom:"Pomeranian",frenchie:"French Bulldog",
+  "shih tzu":"Shih Tzu",shihtzu:"Shih Tzu",husky:"Siberian Husky",rott:"Rottweiler",rottweiler:"Rottweiler",doberman:"Doberman",dobermann:"Doberman",
+  mudhol:"Mudhol / Caravan Hound",caravan:"Mudhol / Caravan Hound",dane:"Great Dane",saint:"Saint Bernard","st bernard":"Saint Bernard",
+  pitbull:"Amstaff / Pit-type","pit bull":"Amstaff / Pit-type",amstaff:"Amstaff / Pit-type",gaddi:"Himalayan Sheepdog (Gaddi)","bully kutta":"Bully Kutta (Indian Mastiff)",
+  dachshund:"Dachshund (Standard)",sausage:"Dachshund (Standard)",corgi:"Pembroke Corgi",bulldog:"English Bulldog",spitz:"Indian Spitz",poodle:"Standard Poodle",
+  malamute:"Alaskan Malamute",basset:"Basset Hound","tibetan mastiff":"Tibetan Mastiff",bullmastiff:"Bullmastiff",banjara:"Banjara Hound",vanjari:"Banjara Hound"};
+
+function findBreeds(q, all){
+  const found=[]; const ql=" "+q.toLowerCase()+" ";
+  const entries=Object.entries(ALIASES).sort((a,z)=>z[0].length-a[0].length);
+  for(const [alias,full] of entries){ if(ql.includes(alias)){ const b=all.find(x=>x.name===full); if(b && !found.includes(b)) found.push(b); } }
+  for(const b of all){ const parts=[b.name.toLowerCase(),b.name.toLowerCase().split(" (")[0],b.name.toLowerCase().split(" /")[0]];
+    if(parts.some(p=>p.length>3 && ql.includes(p)) && !found.includes(b)) found.push(b); }
+  return found.slice(0,2);
+}
+const confNote = t => t==="A"?"confidence A, ±2–3 cm":t==="B"?"confidence B, ±4–6 cm":"confidence C — estimate, validate in fit lab";
+
+function answerQuestion(q, all){
+  const ql=q.toLowerCase();
+  const breeds=findBreeds(q, all);
+  const has=w=>ql.includes(w);
+  const zoneWord=Object.keys(CITY_ZONE).find(c=>ql.includes(c));
+  const nums=(ql.match(/(\d+(?:\.\d+)?)\s*(?:–|-|to)\s*(\d+(?:\.\d+)?)/)||[]).slice(1,3).map(Number);
+  const L=[];
+
+  if(breeds.length===2){
+    const [a,b]=breeds;
+    L.push(`**${a.name} vs ${b.name}**`);
+    L.push(`• Neck: ${a.neck[0]}–${a.neck[1]} cm (${a.conf.neck}) vs ${b.neck[0]}–${b.neck[1]} cm (${b.conf.neck})`);
+    L.push(`• Chest: ${a.chest[0]}–${a.chest[1]} cm (${a.conf.chest}) vs ${b.chest[0]}–${b.chest[1]} cm (${b.conf.chest})`);
+    L.push(`• Weight: ${a.weight[0]}–${a.weight[1]} kg vs ${b.weight[0]}–${b.weight[1]} kg`);
+    L.push(`• Pull: ${a.beh.pull}/5 vs ${b.beh.pull}/5 · Escape: ${a.beh.escape}/5 vs ${b.beh.escape}/5 · Heat: ${a.heat}/5 vs ${b.heat}/5`);
+    L.push(`• Gear: ${a.name} → ${a.beh.clip}; ${b.name} → ${b.beh.clip}`);
+    return L.join("\n");
+  }
+
+  if(breeds.length===1){
+    const b=breeds[0]; const care=b.care||{};
+    if(has("collar")){
+      L.push(`**Collar for ${b.name}**`);
+      L.push(`• Adult neck girth: ${b.neck[0]}–${b.neck[1]} cm (${confNote(b.conf.neck)}). Add ~2 cm wearing ease.`);
+      L.push(`• Webbing: ${widthAdvice(b.neck[1])}.`);
+      if(b.flags.includes("brachy")) L.push(`• ⚠ Brachycephalic — collar for ID tags only; walks on a harness.`);
+      if(b.flags.includes("slipRisk")) L.push(`• ⚠ Slip risk — head narrower than neck; flat collars slip. Use a martingale.`);
+      if(b.beh.pull>=4) L.push(`• Strong puller (${b.beh.pull}/5): ${pullHardware(b.beh.pull)}.`);
+      return L.join("\n");
+    }
+    if(has("harness")){
+      L.push(`**Harness for ${b.name}**`);
+      L.push(`• Neck: ${b.neck[0]}–${b.neck[1]} cm (${b.conf.neck}) · Chest: ${b.chest[0]}–${b.chest[1]} cm (${confNote(b.conf.chest)}).`);
+      L.push(`• Recommended: ${b.beh.clip}. Pull ${b.beh.pull}/5 · escape ${b.beh.escape}/5.`);
+      L.push(`• Hardware: ${pullHardware(b.beh.pull)}.`);
+      if(b.flags.includes("deepChest")) L.push(`• Deep chest — girth strap migrates; keep it near the elbow with a Y-front.`);
+      if(b.flags.includes("coatLoft")) L.push(`• Coat loft adds 2–5 cm apparent girth — size on compressed measurement.`);
+      return L.join("\n");
+    }
+    if(has("pull")||has("leash")){
+      L.push(`**${b.name} on leash**`);
+      L.push(`• Pull ${b.beh.pull}/5 · energy ${b.beh.energy}/5 · escape ${b.beh.escape}/5.`);
+      L.push(`• Gear: ${b.beh.clip}. Hardware: ${pullHardware(b.beh.pull)}.`);
+      return L.join("\n");
+    }
+    if(has("shed")||has("groom")||has("coat")||has("drool")||has("skin")){
+      L.push(`**${b.name} — coat & materials**`);
+      L.push(`• Coat: ${b.coat}. Shedding ${care.shed}/5 · grooming ${care.groom}/5 · drool ${care.drool}/5 · skin sensitivity ${care.skin}/5.`);
+      if(care.skin>=4) L.push(`• Sensitive skin — soft linings, colourfast dyes, no rough edges.`);
+      if(care.shed>=4) L.push(`• High shed — avoid velcro and plush linings that trap fur.`);
+      if(care.drool>=4) L.push(`• Heavy drool — quick-dry, stain-resistant webbing.`);
+      return L.join("\n");
+    }
+    if(has("heat")||has("summer")||has("hot")||has("climate")){
+      L.push(`**${b.name} in Indian heat**`);
+      L.push(`• ${heatInfo(b.heat).label}. ${heatInfo(b.heat).tip}`);
+      return L.join("\n");
+    }
+    if(has("region")||has("where")||zoneWord){
+      L.push(`**${b.name} — regional demand**`);
+      Object.values(REGIONS).forEach(r=>L.push(`• ${r.label} (${r.cities}): ${b.regions[r.key]}/5`));
+      return L.join("\n");
+    }
+    L.push(`**${b.name}** (${b.group}${b.huft?", HUFT priority breed":""})`);
+    L.push(`• Neck ${b.neck[0]}–${b.neck[1]} cm (${b.conf.neck}) · Chest ${b.chest[0]}–${b.chest[1]} cm (${b.conf.chest}) · ${b.weight[0]}–${b.weight[1]} kg · ${b.height[0]}–${b.height[1]} cm tall`);
+    L.push(`• Behaviour: pull ${b.beh.pull}/5, escape ${b.beh.escape}/5 → ${b.beh.clip}`);
+    L.push(`• Heat ${b.heat}/5 · demand N${b.regions.n} W${b.regions.w} S${b.regions.s} E${b.regions.e} · lifespan ${care.life?care.life[0]+"–"+care.life[1]+" yrs":"n/a"}`);
+    L.push(`• ${b.notes}`);
+    return L.join("\n");
+  }
+
+  if(nums.length===2 && (has("neck")||has("chest")||has("collar")||has("harness")||has("fit"))){
+    const dim=has("chest")?"chest":"neck";
+    const [lo,hi]=nums;
+    const fits=all.map(b=>({b,pct:overlapPct(b[dim],[lo,hi])})).filter(x=>x.pct>0).sort((a,z)=>z.pct-a.pct||z.b.pop-a.b.pop);
+    const full=fits.filter(x=>x.pct>=0.9), good=fits.filter(x=>x.pct>=0.55&&x.pct<0.9);
+    L.push(`**${dim==="neck"?"Neck":"Chest"} range ${lo}–${hi} cm covers:**`);
+    L.push(`• Full fit (${full.length}): ${full.slice(0,10).map(x=>x.b.name).join(", ")||"none"}${full.length>10?"…":""}`);
+    L.push(`• Good fit (${good.length}): ${good.slice(0,8).map(x=>x.b.name).join(", ")||"none"}${good.length>8?"…":""}`);
+    L.push(`Open the Fit checker to see tape-bar overlap per breed and the second dimension.`);
+    return L.join("\n");
+  }
+
+  if(zoneWord){
+    const z=CITY_ZONE[zoneWord]; const r=REGIONS[z];
+    const ranked=[...all].filter(b=>b.regions[z]>0).sort((a,x)=>x.regions[z]-a.regions[z]||x.pop-a.pop).slice(0,8);
+    L.push(`**Top breeds — ${r.label} zone** (${r.cities}):`);
+    ranked.forEach(b=>L.push(`• ${b.name} — ${b.regions[z]}/5 · neck ${b.neck[0]}–${b.neck[1]}, chest ${b.chest[0]}–${b.chest[1]} cm`));
+    L.push(`Zone demand is indicative — swap in ERP sales data for ground truth.`);
+    return L.join("\n");
+  }
+
+  if(has("pull")){ const t=[...all].sort((a,z)=>z.beh.pull-a.beh.pull).slice(0,8);
+    return ["**Strongest pullers** (hardware-critical):",...t.map(b=>`• ${b.name} — pull ${b.beh.pull}/5, ${pullHardware(b.beh.pull)}`)].join("\n"); }
+  if(has("escape")||has("slip")||has("martingale")){ const t=all.filter(b=>b.beh.escape>=4||b.flags.includes("slipRisk"));
+    return ["**Slip-risk / escape-artist breeds** (martingale or 3-strap):",...t.map(b=>`• ${b.name} — escape ${b.beh.escape}/5`)].join("\n"); }
+  if(has("heat")||has("summer")){ const t=all.filter(b=>b.heat>=4&&b.pop>=3), w=all.filter(b=>b.heat<=2&&b.pop>=3);
+    return [`**Heat-tolerant high-demand breeds:** ${t.map(b=>b.name).join(", ")}`,``,`**Heat-sensitive but popular** (mesh-only builds): ${w.map(b=>b.name).join(", ")}`].join("\n"); }
+  if(has("brachy")||has("flat face")){ const t=all.filter(b=>b.flags.includes("brachy"));
+    return ["**Brachycephalic breeds** (harness-only for walks):",...t.map(b=>`• ${b.name} — neck ${b.neck[0]}–${b.neck[1]}, chest ${b.chest[0]}–${b.chest[1]} cm`)].join("\n"); }
+  if(has("native")||has("indian breed")||has("desi")){ const t=all.filter(b=>b.group==="Native");
+    return [`**Native Indian breeds in the database (${t.length}):**`,...t.map(b=>`• ${b.name} — chest ${b.chest[0]}–${b.chest[1]} cm (${b.conf.chest}) · ${b.beh.clip}`)].join("\n"); }
+  if(has("popular")||has("top")||has("priority")||has("best")){ const t=[...all].sort((a,z)=>z.pop-a.pop).slice(0,10);
+    return ["**Highest India demand:**",...t.map(b=>`• ${b.name} ${"★".repeat(b.pop)}${b.huft?" · HUFT SIX":""}`)].join("\n"); }
+
+  return ["I answer from the breed database. Try:",
+    `• "What size collar for a Beagle?"`,
+    `• "Harness for an Indie"`,
+    `• "Which breeds fit neck 30-45?"`,
+    `• "Top breeds in Delhi" or "South zone"`,
+    `• "Compare Labrador and Golden"`,
+    `• "Strongest pullers" · "Slip-risk breeds" · "Native breeds"`].join("\n");
+}
+
+function AskTab({all}){
+  const [msgs,setMsgs]=useState([{role:"bot",text:"Hi! I'm the HUFT Fit engine. Ask me anything about the "+all.length+" breeds in the database — sizes, fit, behaviour, regions, materials. I answer only from the portal's data, with confidence tiers attached."}]);
+  const [input,setInput]=useState("");
+  const send=(text)=>{
+    const q=(text!==undefined?text:input).trim(); if(!q) return;
+    const a=answerQuestion(q, all);
+    setMsgs(m=>[...m,{role:"user",text:q},{role:"bot",text:a}]);
+    setInput("");
+    setTimeout(()=>{const el=document.getElementById("chat-end"); if(el) el.scrollIntoView({behavior:"smooth",block:"nearest"});},60);
+  };
+  const chips=["What size collar for a Beagle?","Harness for an Indie","Which breeds fit neck 35-50?","Top breeds in Delhi","Compare Labrador and Golden Retriever","Strongest pullers","Native breeds"];
+  const render=(t)=>t.split("\n").map((ln,i)=>{
+    const parts=ln.split("**");
+    return <div key={i} style={{minHeight:ln?undefined:8}}>{parts.map((p,j)=>j%2===1?<b key={j}>{p}</b>:<span key={j}>{p}</span>)}</div>;
+  });
+  return (
+    <React.Fragment>
+      <section style={{background:"#fff",borderRadius:8,border:"1px solid #E6E9EF",padding:16,marginBottom:12}}>
+        <div style={{maxHeight:420,overflowY:"auto",display:"grid",gap:10}}>
+          {msgs.map((m,i)=>(
+            <div key={i} style={{justifySelf:m.role==="user"?"end":"start",maxWidth:"88%",background:m.role==="user"?"#FF6D1F":"#F5F6F8",color:m.role==="user"?"#fff":"#323338",borderRadius:m.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px",padding:"10px 14px",fontSize:13.5,lineHeight:1.55,overflowWrap:"break-word"}}>
+              {render(m.text)}
+            </div>
+          ))}
+          <div id="chat-end"/>
+        </div>
+        <div style={{display:"flex",gap:8,marginTop:12}}>
+          <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")send();}} placeholder="Ask about any breed, size, region…"
+            style={{flex:1,padding:"11px 16px",borderRadius:999,border:"1.5px solid #E6E9EF",fontSize:14,fontFamily:"inherit",background:"#F6F7FB"}}/>
+          <button onClick={()=>send()} style={{background:"#FF6D1F",color:"#fff",border:"none",borderRadius:999,padding:"11px 20px",fontWeight:600,fontSize:13.5,cursor:"pointer",fontFamily:"inherit"}}>Ask</button>
+        </div>
+      </section>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
+        {chips.map(c=><button key={c} onClick={()=>send(c)} style={{padding:"6px 13px",borderRadius:999,border:"1.5px solid #E6E9EF",background:"#fff",color:"#676879",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{c}</button>)}
+      </div>
+      <p style={{fontSize:11.5,color:"#9699A6",lineHeight:1.55}}>This engine is rule-based and answers strictly from the portal's breed database — it runs fully in the browser at zero API cost. It can later be upgraded to Claude via a small serverless function (keeps the API key off the client); the data layer stays the same.</p>
+    </React.Fragment>
+  );
+}
+
+/* ---------- add-a-breed form ---------- */
+function AddBreedForm({existingNames,onAdd,onClose}){
+  const [f,setF]=useState({name:"",group:"Medium",wLo:10,wHi:20,hLo:40,hHi:55,nLo:30,nHi:45,cLo:50,cHi:70,coat:"Short",pop:3,heat:3,pull:3,energy:3,escape:2,clip:"Back-clip harness",rn:3,rw:3,rs:3,re:3,confTier:"C",flags:[],notes:"",src:""});
+  const [err,setErr]=useState("");
+  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+  const toggleFlag=fl=>set("flags",f.flags.includes(fl)?f.flags.filter(x=>x!==fl):[...f.flags,fl]);
+  const inp={...{fontFamily:"'IBM Plex Mono', ui-monospace, monospace"},fontSize:14,fontWeight:600,padding:"7px 8px",borderRadius:7,border:"1.5px solid #C3C6D4",width:"100%",boxSizing:"border-box"};
+  const lbl={fontSize:10.5,letterSpacing:"0.05em",textTransform:"uppercase",color:"#676879",fontWeight:600,display:"block",marginBottom:3};
+  const sel={padding:"7px 8px",borderRadius:7,border:"1.5px solid #C3C6D4",fontSize:13,fontFamily:"inherit",width:"100%",boxSizing:"border-box",background:"#fff"};
+  const Pair=({label,lo,hi,unit})=>(
+    <div style={{flex:1,minWidth:130}}>
+      <span style={lbl}>{label} ({unit})</span>
+      <div style={{display:"flex",gap:4,alignItems:"center"}}>
+        <input type="number" inputMode="decimal" step="0.5" value={f[lo]} onChange={e=>set(lo,Number(e.target.value))} style={inp}/>
+        <span style={{color:"#9699A6"}}>–</span>
+        <input type="number" inputMode="decimal" step="0.5" value={f[hi]} onChange={e=>set(hi,Number(e.target.value))} style={inp}/>
+      </div>
+    </div>);
+  const Rate=({label,k,max=5,min=0})=>(
+    <div style={{flex:1,minWidth:90}}>
+      <span style={lbl}>{label}</span>
+      <select value={f[k]} onChange={e=>set(k,Number(e.target.value))} style={sel}>
+        {Array.from({length:max-min+1},(_,i)=>min+i).map(v=><option key={v} value={v}>{v}</option>)}
+      </select>
+    </div>);
+  const submit=()=>{
+    const name=f.name.trim();
+    if(!name) return setErr("Breed name is required.");
+    if(existingNames.some(n=>n.toLowerCase()===name.toLowerCase())) return setErr(`"${name}" already exists in the database.`);
+    for(const [lo,hi,l] of [["wLo","wHi","Weight"],["hLo","hHi","Height"],["nLo","nHi","Neck"],["cLo","cHi","Chest"]])
+      if(!(f[hi]>f[lo])) return setErr(`${l}: max must be greater than min.`);
+    onAdd({
+      name, group:f.group, weight:[f.wLo,f.wHi], height:[f.hLo,f.hHi], neck:[f.nLo,f.nHi], chest:[f.cLo,f.cHi],
+      coat:f.coat, flags:f.flags, pop:f.pop, growth:"Team-entered — verify growth curve",
+      regions:{n:f.rn,w:f.rw,s:f.rs,e:f.re}, heat:f.heat,
+      conf:{neck:f.confTier,chest:f.confTier,wt:f.confTier,ht:f.confTier},
+      src:[f.src.trim()||"Team-entered — source not specified", "Added via portal on "+new Date().toISOString().slice(0,10)],
+      beh:{pull:f.pull,energy:f.energy,escape:f.escape,clip:f.clip.trim()||"Back-clip harness"},
+      notes:f.notes.trim()||"Team-added breed — pending fit-lab validation.", custom:true,
+      care:{life:[9,14],shed:3,groom:2,drool:1,skin:2,train:3,bodyLen:[Math.round(f.hLo*1.02),Math.round(f.hHi*1.1)]},
+    });
+  };
+  return (
+    <section style={{background:"#fff",borderRadius:8,border:"1.5px solid #323338",padding:16,marginBottom:12}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <h3 style={{margin:0,fontSize:15}}>Add a breed</h3>
+        <button onClick={onClose} style={{border:"1px solid #E6E9EF",background:"#fff",borderRadius:7,padding:"4px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit",color:"#676879"}}>Cancel</button>
+      </div>
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
+        <div style={{flex:2,minWidth:180}}><span style={lbl}>Breed name</span><input value={f.name} onChange={e=>set("name",e.target.value)} placeholder="e.g. Golden Indie mix" style={{...inp,fontFamily:"inherit",fontWeight:500}}/></div>
+        <div style={{flex:1,minWidth:110}}><span style={lbl}>Group</span><select value={f.group} onChange={e=>set("group",e.target.value)} style={sel}>{GROUPS.filter(g=>g!=="All").map(g=><option key={g}>{g}</option>)}</select></div>
+        <div style={{flex:1,minWidth:110}}><span style={lbl}>Coat</span><input value={f.coat} onChange={e=>set("coat",e.target.value)} style={{...inp,fontFamily:"inherit",fontWeight:500}}/></div>
+      </div>
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
+        {Pair({label:"Neck girth",lo:"nLo",hi:"nHi",unit:"cm"})}
+        {Pair({label:"Chest girth",lo:"cLo",hi:"cHi",unit:"cm"})}
+        {Pair({label:"Weight",lo:"wLo",hi:"wHi",unit:"kg"})}
+        {Pair({label:"Height",lo:"hLo",hi:"hHi",unit:"cm"})}
+      </div>
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
+        <div style={{flex:1,minWidth:160}}>
+          <span style={lbl}>How sure is this data?</span>
+          <select value={f.confTier} onChange={e=>set("confTier",e.target.value)} style={sel}>
+            <option value="A">A — measured (fit lab / study)</option>
+            <option value="B">B — from sizing charts</option>
+            <option value="C">C — estimate, needs validation</option>
+          </select>
+        </div>
+        {Rate({label:"India demand",k:"pop",min:1})}
+        {Rate({label:"Heat tolerance",k:"heat",min:1})}
+      </div>
+      <span style={lbl}>Zone demand (HUFT regions)</span>
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
+        {Rate({label:"North",k:"rn"})}{Rate({label:"West",k:"rw"})}{Rate({label:"South",k:"rs"})}{Rate({label:"East",k:"re"})}
+      </div>
+      <span style={lbl}>Behaviour (leash / harness)</span>
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
+        {Rate({label:"Pull force",k:"pull",min:1})}{Rate({label:"Energy",k:"energy",min:1})}{Rate({label:"Escape risk",k:"escape",min:1})}
+        <div style={{flex:2,minWidth:170}}><span style={lbl}>Recommended clip / gear</span><input value={f.clip} onChange={e=>set("clip",e.target.value)} style={{...inp,fontFamily:"inherit",fontWeight:500}}/></div>
+      </div>
+      <span style={lbl}>Build flags</span>
+      <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>
+        {Object.entries(FLAG_LABELS).map(([k,v])=>(
+          <button key={k} onClick={()=>toggleFlag(k)} title={v.tip} style={{padding:"4px 10px",borderRadius:999,fontSize:11.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:f.flags.includes(k)?"1.5px solid #BA4511":"1.5px solid #E6E9EF",background:f.flags.includes(k)?"#FEF1E5":"#fff",color:f.flags.includes(k)?"#BA4511":"#9699A6"}}>{v.label}</button>
+        ))}
+      </div>
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
+        <div style={{flex:1,minWidth:200}}><span style={lbl}>Source of the numbers</span><input value={f.src} onChange={e=>set("src",e.target.value)} placeholder="e.g. Fit lab session 12 Jun · 6 dogs measured" style={{...inp,fontFamily:"inherit",fontWeight:500}}/></div>
+        <div style={{flex:2,minWidth:200}}><span style={lbl}>Fit notes</span><input value={f.notes} onChange={e=>set("notes",e.target.value)} placeholder="Anything the apparel team should know" style={{...inp,fontFamily:"inherit",fontWeight:500}}/></div>
+      </div>
+      {err && <p style={{color:"#E2445C",fontSize:13,margin:"0 0 8px"}}>{err}</p>}
+      <button onClick={submit} style={{background:"#FF6D1F",color:"#fff",border:"none",borderRadius:8,padding:"9px 20px",fontSize:13.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Add breed</button>
+    </section>
+  );
+}
+
+/* ============================================================ */
+function App(){
+  const [tab,setTab]=useState("home");
+  const [ptype,setPtype]=useState("harness");
+  const [pname,setPname]=useState("");
+  const [neckMin,setNeckMin]=useState(35),[neckMax,setNeckMax]=useState(50);
+  const [chestMin,setChestMin]=useState(55),[chestMax,setChestMax]=useState(75);
+  const [width,setWidth]=useState(2.5);
+  const [query,setQuery]=useState("");
+  const [grp,setGrp]=useState("All");
+  const [regionFocus,setRegionFocus]=useState("all");
+  const [regionTab,setRegionTab]=useState("n");
+  const [saved,setSaved]=useState(()=>store.get(KEY_PRODUCTS,[]));
+  const [feedback,setFeedback]=useState(()=>store.get(KEY_FEEDBACK,[]));
+  const [customBreeds,setCustomBreeds]=useState(()=>store.get(KEY_CUSTOM,[]));
+  const [showAddBreed,setShowAddBreed]=useState(false);
+  const ALL=useMemo(()=>[...BREEDS,...customBreeds],[customBreeds]);
+  const [toast,setToast]=useState("");
+  const say=m=>{setToast(m);setTimeout(()=>setToast(""),2500);};
+
+  const persistProducts=l=>{setSaved(l); if(!store.set(KEY_PRODUCTS,l)) say("Storage unavailable — export before closing");};
+  const addFeedback=f=>{const l=[...feedback,f]; setFeedback(l); if(store.set(KEY_FEEDBACK,l)) say("Feedback saved — thank you"); else say("Storage unavailable");};
+  const addCustomBreed=b=>{const l=[...customBreeds,b]; setCustomBreeds(l); if(store.set(KEY_CUSTOM,l)) say(`"${b.name}" added to database`); else say("Storage unavailable — export before closing"); setShowAddBreed(false);};
+  const removeCustomBreed=name=>{ if(!window.confirm(`Remove custom breed "${name}"? This cannot be undone.`)) return; const l=customBreeds.filter(b=>b.name!==name); setCustomBreeds(l); store.set(KEY_CUSTOM,l); say(`Removed "${name}"`);};
+
+  const validDims = ptype==="collar" ? (neckMin!==""&&neckMax!==""&&neckMax>neckMin)
+    : (neckMin!==""&&neckMax!==""&&chestMin!==""&&chestMax!==""&&neckMax>neckMin&&chestMax>chestMin);
+
+  const results=useMemo(()=>{ if(!validDims) return [];
+    const pool = regionFocus==="all" ? ALL : ALL.filter(b=>b.regions[regionFocus]>0);
+    const demand = b => regionFocus==="all" ? b.pop : b.regions[regionFocus];
+    return pool.map(b=>{ const nPct=overlapPct(b.neck,[neckMin,neckMax]);
+      const cPct=ptype==="harness"?overlapPct(b.chest,[chestMin,chestMax]):1;
+      const combined=ptype==="harness"?Math.min(nPct,cPct):nPct;
+      return {breed:b,nPct,cPct,combined,grade:gradeOf(combined),demand:demand(b)};
+    }).sort((a,z)=>z.combined-a.combined||z.demand-a.demand);
+  },[ptype,neckMin,neckMax,chestMin,chestMax,validDims,regionFocus]);
+
+  const counts=useMemo(()=>{const c={full:0,good:0,partial:0,none:0};results.forEach(r=>c[r.grade]++);return c;},[results]);
+
+  const saveProduct=()=>{ if(!validDims) return;
+    const p={id:Date.now(),name:pname.trim()||`${ptype==="collar"?"Collar":"Harness"} ${saved.length+1}`,type:ptype,neck:[neckMin,neckMax],chest:ptype==="harness"?[chestMin,chestMax]:null,width};
+    persistProducts([...saved,p]); say(`Saved "${p.name}" to line coverage`);
+  };
+  const removeProduct=id=>persistProducts(saved.filter(p=>p.id!==id));
+
+  const exportJSON=(data,fname)=>{
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=fname; a.click(); URL.revokeObjectURL(a.href);
+  };
+
+  const filteredBreeds=ALL.filter(b=>(grp==="All"||b.group===grp)&&b.name.toLowerCase().includes(query.toLowerCase()));
+  const searchResults=query.trim()?ALL.filter(b=>b.name.toLowerCase().includes(query.toLowerCase())):[];
+
+  const coverage=useMemo(()=>ALL.map(b=>{
+    let best={grade:"none",pct:0,via:null};
+    saved.forEach(p=>{ const nPct=overlapPct(b.neck,p.neck);
+      const cPct=p.type==="harness"&&p.chest?overlapPct(b.chest,p.chest):1;
+      const combined=p.type==="harness"?Math.min(nPct,cPct):nPct;
+      if(combined>best.pct) best={grade:gradeOf(combined),pct:combined,via:p.name};
+    });
+    return {breed:b,...best};
+  }).sort((a,z)=>a.pct-z.pct),[saved,ALL]);
+  const gaps=coverage.filter(c=>c.grade==="none"||c.grade==="partial");
+
+  const NAVITEMS=[["home","⌂","Home"],["fit","⚖","Fit checker"],["library","🐕","Breed library"],["regions","🗺","Regions"],["ask","💬","Ask HUFT Fit"],["coverage","📦","Line coverage"],["feedback","📝","Feedback"]];
+  const card={background:"#fff",borderRadius:8,border:"1px solid #E6E9EF",padding:16,marginBottom:12};
+
+  return (
+    <div className="app-shell" style={{background:"#F6F7FB",color:"#323338",fontFamily:"'Rubik', -apple-system, 'Segoe UI', sans-serif"}}>
+      {/* monday-style left sidebar */}
+      <aside className="side">
+        <div onClick={()=>setTab("home")} style={{cursor:"pointer",display:"flex",alignItems:"center",gap:9,flexShrink:0}}>
+          <div style={{background:"#FF6D1F",color:"#fff",borderRadius:8,width:38,height:38,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:15}}>H</div>
+          <div><div style={{fontWeight:700,fontSize:14.5,lineHeight:1.1,color:"#222222"}}>HUFT</div><div style={{fontSize:10.5,color:"#676879",letterSpacing:"0.08em"}}>FIT FINDER</div></div>
+        </div>
+        <div className="navlist">
+          {NAVITEMS.map(([k,ic,l])=>{
+            const badge = k==="coverage"?saved.length : k==="feedback"?feedback.length : 0;
+            return (
+            <button key={k} onClick={()=>setTab(k)} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 10px",borderRadius:6,border:"none",cursor:"pointer",fontSize:13.5,fontWeight:tab===k?600:500,fontFamily:"inherit",whiteSpace:"nowrap",textAlign:"left",background:tab===k?"#FEF1E5":"transparent",color:tab===k?"#BA4511":"#40434E",boxShadow:tab===k?"inset 3px 0 0 #FF6D1F":"none"}}>
+              <span style={{fontSize:15,width:20,textAlign:"center"}}>{ic}</span>{l}
+              {badge>0 && <span style={{marginLeft:"auto",background:tab===k?"#FF6D1F":"#E6E9EF",color:tab===k?"#fff":"#676879",borderRadius:999,fontSize:10.5,fontWeight:700,padding:"1px 7px"}}>{badge}</span>}
+            </button>);
+          })}
+        </div>
+        <div className="sidestats" style={{borderTop:"1px solid #EAECF2",paddingTop:10,fontSize:11,color:"#9699A6",lineHeight:1.7}}>
+          {ALL.length} breeds · all cm<br/>{customBreeds.length} team-added<br/>v4.0 · Book of Tails UI
+        </div>
+      </aside>
+
+      <div className="mainarea">
+      {/* topbar with global search */}
+      <div style={{background:"#fff",borderBottom:"1px solid #E6E9EF",padding:"10px 16px",position:"sticky",top:0,zIndex:30}}>
+        <div style={{maxWidth:960,margin:"0 auto",position:"relative"}}>
+          <input value={query} onChange={e=>setQuery(e.target.value)} placeholder={`Search ${ALL.length} breeds — Indie, Labrador, Mudhol…`}
+            style={{width:"100%",boxSizing:"border-box",padding:"10px 16px",borderRadius:8,border:"1.5px solid #E6E9EF",fontSize:14,fontFamily:"inherit",background:"#F6F7FB",color:"#323338"}}/>
+          {query.trim() && tab!=="library" && (
+            <div style={{position:"absolute",top:"100%",left:0,right:0,background:"#fff",borderRadius:8,marginTop:6,boxShadow:"0 10px 30px rgba(50,51,56,0.18)",border:"1px solid #E6E9EF",zIndex:40,overflow:"hidden"}}>
+              {searchResults.slice(0,6).map(b=>(
+                <button key={b.name} onClick={()=>{setTab("library");setGrp("All");}} style={{display:"flex",justifyContent:"space-between",gap:8,width:"100%",padding:"10px 14px",border:"none",borderBottom:"1px solid #EAECF2",background:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:13.5,color:"#323338",textAlign:"left"}}>
+                  <b>{b.name}</b><span style={{...MONO,fontSize:11.5,color:"#9699A6"}}>neck {b.neck[0]}–{b.neck[1]} · chest {b.chest[0]}–{b.chest[1]}</span>
+                </button>
+              ))}
+              {searchResults.length===0 && <div style={{padding:"10px 14px",fontSize:13,color:"#9699A6"}}>No breed matches "{query}"</div>}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{maxWidth:960,margin:"0 auto",padding:"16px 16px 60px"}}>
+        {toast && <div style={{position:"fixed",bottom:18,left:"50%",transform:"translateX(-50%)",background:"#323338",color:"#fff",padding:"10px 16px",borderRadius:999,fontSize:13,zIndex:50}}>{toast}</div>}
+
+        {/* ===== HOME ===== */}
+        {tab==="home" && <>
+          <section style={{...card,background:"#FF6D1F",border:"none",color:"#fff",padding:"22px 20px"}}>
+            <h2 style={{margin:0,fontSize:20,fontWeight:700}}>Does it fit the dogs of India?</h2>
+            <p style={{margin:"6px 0 0",fontSize:13.5,opacity:0.92,lineHeight:1.5}}>Check collar & harness dimensions against {ALL.length} breeds measured for the Indian market — with confidence scores, regional demand, and behaviour data for every breed.</p>
+          </section>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))",gap:10,marginBottom:12}}>
+            {[["fit","📏","Check a fit","Enter product dimensions, see which breeds it serves"],["library","🐕","Breed library","All measurements, care & behaviour data per breed"],["ask","💬","Ask HUFT Fit","Ask a question in plain words — the engine answers from the data"],["regions","🗺️","Regions","Zone-wise demand & assortment spans"]].map(([k,ic,t,d])=>(
+              <button key={k} onClick={()=>setTab(k)} style={{textAlign:"left",background:"#fff",border:"1.5px solid #E6E9EF",borderRadius:8,padding:"16px 14px",cursor:"pointer",fontFamily:"inherit"}}>
+                <div style={{fontSize:26}}>{ic}</div>
+                <div style={{fontWeight:700,fontSize:14.5,color:"#323338",margin:"6px 0 3px"}}>{t}</div>
+                <div style={{fontSize:12,color:"#676879",lineHeight:1.45}}>{d}</div>
+              </button>
+            ))}
+          </div>
+          <section style={card}>
+            <h3 style={{margin:"0 0 4px",fontSize:14.5}}>HUFT priority breeds</h3>
+            <p style={{fontSize:12,color:"#676879",margin:"0 0 10px"}}>The six breeds with dedicated HUFT shop-by-breed pages — check these first on any new product.</p>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {ALL.filter(b=>b.huft).map(b=>(
+                <button key={b.name} onClick={()=>{setQuery(b.name);setTab("library");}} style={{padding:"7px 14px",borderRadius:999,border:"1.5px solid #FF6D1F",background:"#fff",color:"#FF6D1F",fontWeight:600,fontSize:12.5,cursor:"pointer",fontFamily:"inherit"}}>{b.name}</button>
+              ))}
+            </div>
+          </section>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            {[[ALL.length,"breeds in database"],[saved.length,"products saved"],[feedback.length,"team feedback notes"],[customBreeds.length,"team-added breeds"]].map(([n,l])=>(
+              <div key={l} style={{...MONO,flex:1,minWidth:120,textAlign:"center",background:"#fff",border:"1px solid #E6E9EF",borderRadius:8,padding:"14px 8px"}}>
+                <div style={{fontSize:24,fontWeight:600,color:"#FF6D1F"}}>{n}</div>
+                <div style={{fontSize:11,color:"#676879"}}>{l}</div>
+              </div>
+            ))}
+          </div>
+        </>}
+
+
+        {/* ===== FIT CHECKER ===== */}
+        {tab==="fit" && <>
+          <section style={card}>
+            <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
+              {["harness","collar"].map(t=>(
+                <button key={t} onClick={()=>setPtype(t)} style={{padding:"8px 18px",borderRadius:8,cursor:"pointer",fontWeight:600,fontSize:14,fontFamily:"inherit",border:ptype===t?"1.5px solid #323338":"1.5px solid #C3C6D4",background:ptype===t?"#323338":"#fff",color:ptype===t?"#F6C445":"#676879"}}>{t==="harness"?"Harness":"Collar"}</button>
+              ))}
+              <input placeholder="Product name / SKU (optional)" value={pname} onChange={e=>setPname(e.target.value)} style={{flex:1,minWidth:160,padding:"9px 10px",borderRadius:8,border:"1.5px solid #C3C6D4",fontSize:13.5,fontFamily:"inherit"}}/>
+              <select value={regionFocus} onChange={e=>setRegionFocus(e.target.value)} title="Rank results by regional demand" style={{padding:"9px 10px",borderRadius:8,border:"1.5px solid #C3C6D4",fontSize:13,fontFamily:"inherit",background:"#fff",color:regionFocus==="all"?"#676879":"#323338",fontWeight:600}}>
+                <option value="all">All India</option>
+                {Object.values(REGIONS).map(r=><option key={r.key} value={r.key}>{r.label} zone</option>)}
+              </select>
+            </div>
+            {regionFocus!=="all" && <p style={{fontSize:12,color:"#676879",margin:"0 0 10px"}}>Ranking by demand in <b>{REGIONS[regionFocus].label}</b> ({REGIONS[regionFocus].cities}); breeds with zero regional presence hidden.</p>}
+            <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+              <NumBox label="Neck min (cm)" value={neckMin} onChange={setNeckMin}/>
+              <NumBox label="Neck max (cm)" value={neckMax} onChange={setNeckMax}/>
+              {ptype==="harness" && <>
+                <NumBox label="Chest min (cm)" value={chestMin} onChange={setChestMin}/>
+                <NumBox label="Chest max (cm)" value={chestMax} onChange={setChestMax}/>
+              </>}
+              <NumBox label="Webbing width (cm)" value={width} onChange={setWidth} min={0.5} max={8}/>
+            </div>
+            {!validDims && <p style={{color:"#E2445C",fontSize:13,margin:"10px 0 0"}}>Max must be greater than min for each dimension.</p>}
+            <div style={{display:"flex",gap:8,marginTop:14,alignItems:"center",flexWrap:"wrap"}}>
+              <button onClick={saveProduct} disabled={!validDims} style={{padding:"9px 18px",borderRadius:8,border:"none",cursor:validDims?"pointer":"not-allowed",background:validDims?"#FF6D1F":"#E6E9EF",color:"#fff",fontWeight:600,fontSize:13.5,fontFamily:"inherit"}}>Save to line coverage</button>
+              <span style={{fontSize:12,color:"#676879"}}>Saved in this browser — use Export in Line coverage to share.</span>
+            </div>
+          </section>
+
+          {validDims && <>
+            <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+              {Object.entries(counts).map(([g,n])=>(
+                <div key={g} style={{...MONO,flex:1,minWidth:70,textAlign:"center",background:GRADE[g].bg,color:GRADE[g].color,borderRadius:10,padding:"10px 6px",border:`1px solid ${GRADE[g].color}33`}}>
+                  <div style={{fontSize:22,fontWeight:600}}>{n}</div><div style={{fontSize:11}}>{GRADE[g].label}</div>
+                </div>
+              ))}
+            </div>
+            {results.map(({breed:b,nPct,cPct,grade,demand})=>{
+              const worstConf = ptype==="harness" ? ([b.conf.neck,b.conf.chest].includes("C")?"C":[b.conf.neck,b.conf.chest].includes("B")?"B":"A") : b.conf.neck;
+              return (
+              <div key={b.name} style={{...card,padding:"13px 14px",opacity:grade==="none"?0.62:1}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  <div style={{fontWeight:700,fontSize:15}}>{b.name} <span style={{fontWeight:400,fontSize:12,color:"#9699A6"}}>· {b.group} · {regionFocus==="all"?"★".repeat(b.pop):`${REGIONS[regionFocus].label} ${"★".repeat(demand)}`}</span> <ConfBadge tier={worstConf}/></div>
+                  <span style={{fontSize:12,fontWeight:700,padding:"3px 10px",borderRadius:999,background:GRADE[grade].bg,color:GRADE[grade].color}}>{GRADE[grade].label}</span>
+                </div>
+                <div style={{marginTop:10,display:"grid",gap:8}}>
+                  <div>
+                    <div style={{...MONO,fontSize:11,color:"#676879",marginBottom:3,display:"flex",justifyContent:"space-between"}}><span>NECK · breed {b.neck[0]}–{b.neck[1]} cm <ConfBadge tier={b.conf.neck}/></span><span>{Math.round(nPct*100)}% covered</span></div>
+                    <TapeBar breedRange={b.neck} prodRange={[neckMin,neckMax]} domain={[15,90]}/>
+                  </div>
+                  {ptype==="harness" && (
+                    <div>
+                      <div style={{...MONO,fontSize:11,color:"#676879",marginBottom:3,display:"flex",justifyContent:"space-between"}}><span>CHEST · breed {b.chest[0]}–{b.chest[1]} cm <ConfBadge tier={b.conf.chest}/></span><span>{Math.round(cPct*100)}% covered</span></div>
+                      <TapeBar breedRange={b.chest} prodRange={[chestMin,chestMax]} domain={[25,115]}/>
+                    </div>
+                  )}
+                </div>
+                {grade!=="none" && (
+                  <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:9,alignItems:"center"}}>
+                    <Chip text={`Pull ${b.beh.pull}/5`} tip={pullHardware(b.beh.pull)} tone={b.beh.pull>=4?"warn":"info"}/>
+                    <Chip text={`Escape ${b.beh.escape}/5`} tip={b.beh.clip} tone={b.beh.escape>=4?"warn":"info"}/>
+                    {b.flags.map(f=><Chip key={f} text={FLAG_LABELS[f].label} tip={FLAG_LABELS[f].tip} tone="warn"/>)}
+                    <Chip text={widthAdvice(b.neck[1])} tone="info"/>
+                    {ptype==="collar" && b.flags.includes("brachy") && <Chip text="⚠ Recommend harness for walking" tone="warn"/>}
+                    {ptype==="collar" && b.flags.includes("slipRisk") && <Chip text="⚠ Martingale advised" tone="warn"/>}
+                  </div>
+                )}
+              </div>);
+            })}
+          </>}
+        </>}
+
+        {/* ===== BREED LIBRARY ===== */}
+        {tab==="library" && <>
+          <section style={card}>
+            <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:2,alignItems:"center"}}>
+              <button onClick={()=>setShowAddBreed(!showAddBreed)} style={{padding:"5px 14px",borderRadius:999,fontSize:12.5,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit",border:"1.5px solid #FF6D1F",background:showAddBreed?"#FF6D1F":"#fff",color:showAddBreed?"#fff":"#FF6D1F"}}>+ Add breed</button>
+              {GROUPS.map(g=>(
+                <button key={g} onClick={()=>setGrp(g)} style={{padding:"5px 12px",borderRadius:999,fontSize:12.5,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit",border:grp===g?"1.5px solid #323338":"1.5px solid #E6E9EF",background:grp===g?"#323338":"#fff",color:grp===g?"#F6C445":"#676879"}}>{g}</button>
+              ))}
+            </div>
+            {query.trim() && <div style={{fontSize:12,color:"#676879",marginTop:8}}>Filtering by search: "{query}" — clear the top bar to see all.</div>}
+          </section>
+          {showAddBreed && <AddBreedForm existingNames={ALL.map(b=>b.name)} onAdd={addCustomBreed} onClose={()=>setShowAddBreed(false)}/>}
+          {filteredBreeds.map(b=><BreedCard key={b.name} b={b} feedback={feedback} onAddFeedback={addFeedback} onDelete={b.custom?removeCustomBreed:null} defaultOpen={filteredBreeds.length===1}/>)}
+          {filteredBreeds.length===0 && <p style={{textAlign:"center",color:"#9699A6"}}>No breeds match — clear the search or pick another group.</p>}
+        </>}
+
+        {/* ===== LINE COVERAGE ===== */}
+        {tab==="coverage" && <>
+          {saved.length===0 ? (
+            <section style={{...card,textAlign:"center",padding:36}}>
+              <div style={{fontSize:34}}>📏</div>
+              <h3 style={{margin:"8px 0 4px"}}>No products saved yet</h3>
+              <p style={{color:"#676879",fontSize:13.5,margin:0}}>Save product dimensions from the Fit checker to map which breeds your line covers — and where the gaps are.</p>
+            </section>
+          ) : <>
+            <section style={card}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+                <h3 style={{margin:0,fontSize:15}}>Saved products ({saved.length})</h3>
+                <button onClick={()=>exportJSON(saved,"huft-fit-products.json")} style={{border:"1px solid #C3C6D4",background:"#fff",borderRadius:7,padding:"5px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:600,color:"#565A6E"}}>Export JSON</button>
+              </div>
+              {saved.map(p=>(
+                <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,padding:"8px 0",borderTop:"1px solid #EAECF2",marginTop:8}}>
+                  <div>
+                    <div style={{fontWeight:600,fontSize:13.5}}>{p.name} <span style={{fontWeight:400,color:"#9699A6",fontSize:12}}>· {p.type}</span></div>
+                    <div style={{...MONO,fontSize:11.5,color:"#676879"}}>neck {p.neck[0]}–{p.neck[1]}{p.chest?` · chest ${p.chest[0]}–${p.chest[1]}`:""} · {p.width} cm web</div>
+                  </div>
+                  <button onClick={()=>removeProduct(p.id)} style={{border:"1px solid #E6E9EF",background:"#fff",color:"#E2445C",borderRadius:7,padding:"5px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Remove</button>
+                </div>
+              ))}
+            </section>
+            {gaps.length>0 && (
+              <section style={{...card,borderLeft:"4px solid #FF6D1F"}}>
+                <h3 style={{margin:"0 0 6px",fontSize:15}}>Coverage gaps — {gaps.length} breed{gaps.length>1?"s":""}</h3>
+                <p style={{fontSize:12.5,color:"#676879",margin:"0 0 8px"}}>Breeds your current saved line does not fully serve, worst first:</p>
+                <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                  {gaps.map(g=>(<span key={g.breed.name} style={{fontSize:12,padding:"4px 10px",borderRadius:999,background:GRADE[g.grade].bg,color:GRADE[g.grade].color,fontWeight:600}}>{g.breed.name}{"★".repeat(Math.max(0,g.breed.pop-3))}</span>))}
+                </div>
+              </section>
+            )}
+            <section style={card}>
+              <h3 style={{margin:"0 0 8px",fontSize:15}}>Breed-by-breed coverage</h3>
+              {[...coverage].reverse().map(c=>(
+                <div key={c.breed.name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,padding:"7px 0",borderTop:"1px solid #EAECF2",fontSize:13}}>
+                  <span style={{fontWeight:600}}>{c.breed.name}</span>
+                  <span style={{display:"flex",gap:8,alignItems:"center"}}>
+                    {c.via && <span style={{fontSize:11.5,color:"#9699A6"}}>via {c.via}</span>}
+                    <span style={{fontSize:11.5,fontWeight:700,padding:"2px 9px",borderRadius:999,background:GRADE[c.grade].bg,color:GRADE[c.grade].color}}>{GRADE[c.grade].label}</span>
+                  </span>
+                </div>
+              ))}
+            </section>
+          </>}
+        </>}
+
+        {/* ===== REGIONS ===== */}
+        {tab==="regions" && (()=>{
+          const ranked=[...ALL].filter(b=>b.regions[regionTab]>0).sort((a,z)=>z.regions[regionTab]-a.regions[regionTab]||z.pop-a.pop);
+          const top=ranked.filter(b=>b.regions[regionTab]>=4);
+          const neckLo=Math.min(...top.map(b=>b.neck[0])), neckHi=Math.max(...top.map(b=>b.neck[1]));
+          const chestLo=Math.min(...top.map(b=>b.chest[0])), chestHi=Math.max(...top.map(b=>b.chest[1]));
+          const natives=ranked.filter(b=>b.group==="Native");
+          const lowHeat=ranked.filter(b=>b.regions[regionTab]>=3&&b.heat<=2);
+          return <>
+            <section style={card}>
+              <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:6}}>
+                {Object.values(REGIONS).map(r=>(
+                  <button key={r.key} onClick={()=>setRegionTab(r.key)} style={{padding:"7px 16px",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit",border:regionTab===r.key?"1.5px solid #323338":"1.5px solid #E6E9EF",background:regionTab===r.key?"#323338":"#fff",color:regionTab===r.key?"#F6C445":"#676879"}}>{r.label}</button>
+                ))}
+              </div>
+              <div style={{fontSize:13,color:"#40434E"}}><b>{REGIONS[regionTab].label} zone</b> · {REGIONS[regionTab].cities}</div>
+              <div style={{...MONO,display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))",gap:8,marginTop:10,fontSize:12.5}}>
+                <div style={{background:"#F5F6F8",borderRadius:8,padding:"8px 10px"}}><div style={{fontSize:10,color:"#9699A6",textTransform:"uppercase"}}>High-demand breeds (4–5★)</div><div style={{fontWeight:600,marginTop:2}}>{top.length}</div></div>
+                <div style={{background:"#F5F6F8",borderRadius:8,padding:"8px 10px"}}><div style={{fontSize:10,color:"#9699A6",textTransform:"uppercase"}}>Neck span to cover</div><div style={{fontWeight:600,marginTop:2}}>{neckLo}–{neckHi} cm</div></div>
+                <div style={{background:"#F5F6F8",borderRadius:8,padding:"8px 10px"}}><div style={{fontSize:10,color:"#9699A6",textTransform:"uppercase"}}>Chest span to cover</div><div style={{fontWeight:600,marginTop:2}}>{chestLo}–{chestHi} cm</div></div>
+              </div>
+              {lowHeat.length>0 && <p style={{fontSize:12.5,color:"#BA4511",background:"#FEF1E5",borderRadius:8,padding:"8px 10px",margin:"10px 0 0"}}>Heat-sensitive but in demand here: {lowHeat.map(b=>b.name).join(", ")} — assortment should include max-airflow mesh builds for these.</p>}
+              {natives.length>0 && <p style={{fontSize:12.5,color:"#565A6E",background:"#F0F1F6",borderRadius:8,padding:"8px 10px",margin:"8px 0 0"}}>Native breeds in this zone: {natives.map(b=>b.name).join(", ")} — mostly deep-chested/slip-risk; martingale and 3-strap SKUs matter here.</p>}
+            </section>
+            {ranked.map(b=>(
+              <div key={b.name} style={{...card,padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                <div>
+                  <div style={{fontWeight:700,fontSize:14.5}}>{b.name} <span style={{fontWeight:400,fontSize:12,color:"#9699A6"}}>· {b.group}</span></div>
+                  <div style={{...MONO,fontSize:11.5,color:"#676879",marginTop:2}}>neck {b.neck[0]}–{b.neck[1]} <ConfBadge tier={b.conf.neck}/> · chest {b.chest[0]}–{b.chest[1]} <ConfBadge tier={b.conf.chest}/> · heat {b.heat}/5</div>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{color:"#B47500",fontSize:14,letterSpacing:1}}>{"★".repeat(b.regions[regionTab])}{"☆".repeat(5-b.regions[regionTab])}</div>
+                  <div style={{fontSize:10.5,color:"#9699A6"}}>{REGIONS[regionTab].label} demand</div>
+                </div>
+              </div>
+            ))}
+            <p style={{fontSize:12,color:"#9699A6"}}>Zone demand is indicative — compiled from India pet-market reports, the HUFT breed guide's city-level tips, and climate suitability. Swap in PawSuite/ERP category sales by store region for ground truth.</p>
+          </>;
+        })()}
+
+        {/* ===== ASK ===== */}
+        {tab==="ask" && <AskTab all={ALL}/>}
+
+        {/* ===== FEEDBACK LOG ===== */}
+        {tab==="feedback" && <>
+          <section style={card}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+              <h3 style={{margin:0,fontSize:15}}>Team feedback on breed data ({feedback.length})</h3>
+              {feedback.length>0 && <button onClick={()=>exportJSON(feedback,"huft-fit-feedback.json")} style={{border:"1px solid #C3C6D4",background:"#fff",borderRadius:7,padding:"5px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:600,color:"#565A6E"}}>Export JSON</button>}
+            </div>
+            <p style={{fontSize:12.5,color:"#676879",margin:"6px 0 0"}}>Every rating submitted from the Breed library appears here. Export and share the JSON to consolidate team review — this is the pipeline for upgrading C-tier estimates to A-tier fit-lab data.</p>
+          </section>
+          {feedback.length===0 ? (
+            <section style={{...card,textAlign:"center",padding:36}}>
+              <div style={{fontSize:34}}>📝</div>
+              <h3 style={{margin:"8px 0 4px"}}>No feedback yet</h3>
+              <p style={{color:"#676879",fontSize:13.5,margin:0}}>Open any breed in the library and tap "Rate this data" to log whether the numbers match reality.</p>
+            </section>
+          ) : [...feedback].reverse().map(f=>(
+            <div key={f.id} style={{...card,padding:"12px 14px",borderLeft:`4px solid ${f.verdict==="good"?"#00A25B":"#E2445C"}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",gap:8,flexWrap:"wrap",fontSize:13}}>
+                <span><b>{f.breed}</b> · {f.field} · <span style={{color:f.verdict==="good"?"#00A25B":"#E2445C",fontWeight:700}}>{f.verdict==="good"?"✓ good":"✗ needs fix"}</span></span>
+                <span style={{...MONO,fontSize:11.5,color:"#9699A6"}}>{f.author} · {f.ts.slice(0,16).replace("T"," ")}</span>
+              </div>
+              {f.text && <p style={{margin:"6px 0 0",fontSize:13,color:"#40434E"}}>{f.text}</p>}
+            </div>
+          ))}
+        </>}
+
+        <footer style={{marginTop:20,fontSize:11.5,color:"#9699A6",lineHeight:1.6}}>
+          Confidence tiers — <b>A</b>: published standard or measured study (±2–3 cm) · <b>B</b>: aggregated manufacturer sizing charts (±4–6 cm) · <b>C</b>: estimated from build, pending HUFT fit-lab measurement (±8 cm+). Chest girths for 41 of 50 breeds are now B/A, cross-checked against AKC-standard girth bands (The Artful Canine); the remaining C-tier are mostly native breeds with no published girth data — only HUFT fit-lab measurement can raise these to A. Indian lines often run heavier than international standards. Hover any A/B/C badge for what it means. Data is stored in this browser (localStorage); export JSON to consolidate. ★ = relative demand.
+        </footer>
+      </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+
+/* ============================================================
+   SUPABASE UPGRADE PATH (later):
+   Replace the `store` object with async calls to a Supabase
+   table (feedback: id, breed, verdict, field, text, author, ts;
+   products: id, name, type, neck_min/max, chest_min/max, width)
+   and lift setState into .then() — the rest of the app is
+   storage-agnostic.
+   ============================================================ */
+</script>
+</body>
+</html>
