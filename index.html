@@ -179,16 +179,16 @@ function ConfBadge({tier,label}){
     <span style={{position:"relative",display:"inline-flex"}} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)} onClick={e=>{e.stopPropagation();setHov(h=>!h);}}>
       <span style={{...MONO,fontSize:10,fontWeight:600,padding:"1px 6px",borderRadius:4,background:c.bg,color:c.color,border:`1px solid ${c.color}44`,cursor:"help"}}>{tier}</span>
       {hov && (
-        <span style={{position:"absolute",bottom:"calc(100% + 8px)",left:"50%",transform:"translateX(-50%)",width:236,background:"#fff",border:"1px solid #E6E9EF",borderRadius:8,boxShadow:"0 8px 28px rgba(50,51,56,0.22)",padding:"10px 11px",zIndex:60,textAlign:"left",whiteSpace:"normal",cursor:"default"}}>
+        <span style={{position:"absolute",top:"calc(100% + 8px)",left:"50%",transform:"translateX(-50%)",width:236,background:"#fff",border:"1px solid #E6E9EF",borderRadius:8,boxShadow:"0 8px 28px rgba(50,51,56,0.22)",padding:"10px 11px",zIndex:60,textAlign:"left",whiteSpace:"normal",cursor:"default"}}>
+          <span style={{position:"absolute",bottom:"100%",left:"50%",transform:"translateX(-50%)",width:0,height:0,borderLeft:"7px solid transparent",borderRight:"7px solid transparent",borderBottom:"7px solid #fff",filter:"drop-shadow(0 -1px 0 #E6E9EF)"}}/>
           <span style={{display:"block",fontSize:11.5,fontWeight:600,color:"#323338",marginBottom:6,fontFamily:"'Rubik',sans-serif"}}>{label?label+" — ":""}How sure are we?</span>
           {CONF_ROWS.map(([t,desc,tol,col,bg])=>(
-            <span key={t} style={{display:"flex",gap:7,alignItems:"flex-start",padding:"3px 0",opacity:t===tier?1:0.55}}>
+            <span key={t} style={{display:"flex",gap:7,alignItems:"flex-start",padding:"3px 0",opacity:t===tier?1:0.5}}>
               <span style={{...MONO,fontSize:9.5,fontWeight:700,padding:"1px 5px",borderRadius:3,background:bg,color:col,flexShrink:0,marginTop:1}}>{t}</span>
               <span style={{fontSize:10.5,lineHeight:1.35,color:"#40434E",fontFamily:"'Rubik',sans-serif"}}>{desc} <b style={{color:col}}>{tol}</b></span>
             </span>
           ))}
           <span style={{display:"block",fontSize:10,color:"#9699A6",marginTop:6,lineHeight:1.4,fontFamily:"'Rubik',sans-serif"}}>Indian lines often run heavier than international standards.</span>
-          <span style={{position:"absolute",top:"100%",left:"50%",transform:"translateX(-50%)",width:0,height:0,borderLeft:"7px solid transparent",borderRight:"7px solid transparent",borderTop:"7px solid #fff"}}/>
         </span>
       )}
     </span>
@@ -279,7 +279,7 @@ function BreedCard({b,feedback,onAddFeedback,onDelete,defaultOpen}){
   const bad=feedback.filter(f=>f.breed===b.name&&f.verdict==="bad").length;
   const care=b.care||{life:[10,13],shed:3,groom:2,drool:1,skin:2,train:3,bodyLen:[Math.round(b.height[0]*1.02),Math.round(b.height[1]*1.1)]};
   return (
-    <div style={{background:"#fff",borderRadius:8,border:b.custom?"1.5px dashed #676879":bad?"1.5px solid #F0A6B4":"1px solid #E6E9EF",marginBottom:10,overflow:"hidden"}}>
+    <div style={{background:"#fff",borderRadius:8,border:b.custom?"1.5px dashed #676879":bad?"1.5px solid #F0A6B4":"1px solid #E6E9EF",marginBottom:10,overflow:open?"visible":"hidden"}}>
       <button onClick={()=>setOpen(!open)} style={{display:"flex",width:"100%",justifyContent:"space-between",alignItems:"center",gap:10,padding:"13px 16px",border:"none",background:"transparent",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
         <div style={{minWidth:0}}>
           <div style={{fontWeight:700,fontSize:15,color:"#323338"}}>{b.name} {b.huft && <span title="HUFT shop-by-breed priority" style={{fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:999,background:"#FF6D1F",color:"#fff",verticalAlign:"middle"}}>HUFT SIX</span>} {b.custom && <span style={{fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:999,background:"#F0F1F6",color:"#565A6E",verticalAlign:"middle"}}>TEAM-ADDED</span>} {bad>0 && <span title="Team flagged data issues" style={{fontSize:11,color:"#E2445C"}}>⚑ {bad}</span>}</div>
