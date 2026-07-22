@@ -9,6 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="products-catalog.js"></script>
 <style>
   body { margin: 0; background: #F6F7FB; }
   input:focus, button:focus, textarea:focus, select:focus { outline: 2px solid #FF6D1F; outline-offset: 1px; }
@@ -167,6 +168,13 @@ const KEY_PRODUCTS = "huft_fit_products";
 const KEY_FEEDBACK = "huft_fit_feedback";
 const KEY_CUSTOM = "huft_fit_custom_breeds";
 const KEY_SKUS = "huft_fit_skus";
+
+/* Front-end access gate. NOTE: this is a client-side check only — anyone who
+   views this file's source can read the credentials below. It's meant to stop
+   casual/accidental access to an internal tool, not to secure sensitive data. */
+const AUTH_KEY = "huft_fit_auth";
+const AUTH_USER = "product@headsupfortails.com";
+const AUTH_PASS = "Sl031095$";
 
 /* Seed catalog — Xplorer Harness (real HUFT SKU). Variant girths from HUFT
    product sizing; neck estimated, marked to validate. Team edits/adds via Products tab.
@@ -640,6 +648,82 @@ function answerQuestion(q, all){
 }
 
 /* ---------- Products tab ---------- */
+function CatalogTab(){
+  const catalog = (typeof PRODUCT_CATALOG !== "undefined") ? PRODUCT_CATALOG : [];
+  const [q,setQ]=useState("");
+  const [cat,setCat]=useState("All");
+  const [sub,setSub]=useState("All");
+  const [pet,setPet]=useState("All");
+  const [expanded,setExpanded]=useState(null);
+
+  const CATS = useMemo(()=>["All",...Array.from(new Set(catalog.map(p=>p.category))).sort()],[catalog]);
+  const SUBS = useMemo(()=>["All",...Array.from(new Set(catalog.filter(p=>cat==="All"||p.category===cat).map(p=>p.subCategory))).sort()],[catalog,cat]);
+  const PETS = useMemo(()=>["All",...Array.from(new Set(catalog.map(p=>p.petType))).sort()],[catalog]);
+
+  const filtered = useMemo(()=>catalog.filter(p=>
+    (cat==="All"||p.category===cat) &&
+    (sub==="All"||p.subCategory===sub) &&
+    (pet==="All"||p.petType===pet) &&
+    (q.trim()===""||p.name.toLowerCase().includes(q.toLowerCase()))
+  ),[catalog,cat,sub,pet,q]);
+
+  const totalSkus = catalog.reduce((n,p)=>n+p.variants.length,0);
+  const card={background:"#fff",borderRadius:8,border:"1px solid #E6E9EF",padding:16,marginBottom:12};
+  const sel={padding:"6px 10px",borderRadius:7,border:"1px solid #C3C6D4",fontSize:12.5,fontFamily:"inherit",background:"#fff"};
+
+  return (
+    <React.Fragment>
+      <section style={card}>
+        <div style={{marginBottom:10}}>
+          <h3 style={{margin:0,fontSize:15}}>Full product catalog</h3>
+          <p style={{fontSize:12.5,color:"#676879",margin:"4px 0 0"}}>{catalog.length.toLocaleString()} products · {totalSkus.toLocaleString()} SKUs — imported from the HUFT Odoo export (Odoo data sheet).</p>
+        </div>
+        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search product name…"
+          style={{width:"100%",boxSizing:"border-box",padding:"9px 14px",borderRadius:8,border:"1.5px solid #E6E9EF",fontSize:13.5,fontFamily:"inherit",marginBottom:10}}/>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+          <select value={cat} onChange={e=>{setCat(e.target.value);setSub("All");}} style={sel}>
+            {CATS.map(c=><option key={c} value={c}>{c==="All"?"All categories":c}</option>)}
+          </select>
+          <select value={sub} onChange={e=>setSub(e.target.value)} style={sel}>
+            {SUBS.map(s=><option key={s} value={s}>{s==="All"?"All sub-categories":s}</option>)}
+          </select>
+          <select value={pet} onChange={e=>setPet(e.target.value)} style={sel}>
+            {PETS.map(p=><option key={p} value={p}>{p==="All"?"All pets":p}</option>)}
+          </select>
+          <span style={{fontSize:12,color:"#9699A6"}}>{filtered.length.toLocaleString()} match{filtered.length===1?"":"es"}</span>
+        </div>
+      </section>
+      {catalog.length===0 && <p style={{textAlign:"center",color:"#9699A6"}}>Catalog data not loaded — check that products-catalog.js is present alongside index.html.</p>}
+      {filtered.slice(0,300).map((p,i)=>{
+        const open=expanded===i;
+        const hasImg = p.image && /^https?:\/\//.test(p.image);
+        return (
+          <div key={p.name+i} style={{...card,display:"flex",gap:12,alignItems:"flex-start"}}>
+            {hasImg
+              ? <img src={p.image} alt="" style={{width:56,height:56,borderRadius:8,objectFit:"cover",flexShrink:0,background:"#F5F6F8"}}/>
+              : <div style={{width:56,height:56,borderRadius:8,background:"#F5F6F8",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>📦</div>}
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:"flex",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
+                <div style={{fontWeight:700,fontSize:14}}>{p.name}</div>
+                <button onClick={()=>setExpanded(open?null:i)} style={{border:"1px solid #E6E9EF",background:"#fff",borderRadius:7,padding:"3px 10px",fontSize:11.5,cursor:"pointer",fontFamily:"inherit",color:"#40434E",flexShrink:0}}>{open?"Hide":`${p.variants.length} size${p.variants.length>1?"s":""}`}</button>
+              </div>
+              <div style={{fontSize:11.5,color:"#9699A6",marginTop:2}}>{p.category} · {p.subCategory} · {p.petType}{p.collection?` · ${p.collection}`:""}</div>
+              {open && (
+                <div style={{marginTop:8,display:"flex",flexWrap:"wrap",gap:6}}>
+                  {p.variants.map(v=>(
+                    <span key={v.sku} title={v.sku} style={{...MONO,fontSize:11,padding:"3px 9px",borderRadius:999,background:"#F5F6F8",color:"#40434E"}}>{v.size}{v.dimension?` · ${v.dimension}`:""}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+      {filtered.length>300 && <p style={{textAlign:"center",color:"#9699A6",fontSize:12.5}}>Showing first 300 of {filtered.length.toLocaleString()} — narrow your search or filters to see more.</p>}
+    </React.Fragment>
+  );
+}
+
 function ProductsTab({skus,all,onSave,onAsk}){
   const [editing,setEditing]=useState(null); // sku id or "new"
   const [expanded,setExpanded]=useState(skus[0]?skus[0].id:null);
@@ -881,7 +965,46 @@ function AddBreedForm({existingNames,onAdd,onClose}){
 }
 
 /* ============================================================ */
-function App(){
+function LoginScreen({onLogin}){
+  const [email,setEmail]=useState("");
+  const [pass,setPass]=useState("");
+  const [err,setErr]=useState("");
+  const submit=(e)=>{
+    e.preventDefault();
+    if(email.trim().toLowerCase()===AUTH_USER.toLowerCase() && pass===AUTH_PASS){
+      store.set(AUTH_KEY, true);
+      setErr("");
+      onLogin();
+    } else {
+      setErr("Incorrect email or password.");
+    }
+  };
+  const inp={width:"100%",boxSizing:"border-box",padding:"10px 12px",borderRadius:8,border:"1.5px solid #C3C6D4",fontSize:14,marginBottom:14,fontFamily:"inherit"};
+  const lbl={display:"block",fontSize:11,fontWeight:600,color:"#676879",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:5};
+  return (
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#F6F7FB",fontFamily:"'Rubik', -apple-system, 'Segoe UI', sans-serif",padding:16}}>
+      <form onSubmit={submit} style={{background:"#fff",borderRadius:12,border:"1px solid #E6E9EF",padding:"32px 28px",width:"100%",maxWidth:360,boxShadow:"0 8px 28px rgba(50,51,56,0.10)"}}>
+        <div style={{background:"#FF6D1F",color:"#fff",borderRadius:8,width:38,height:38,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:15,marginBottom:14}}>H</div>
+        <div style={{fontSize:20,fontWeight:700,color:"#323338",marginBottom:4}}>HUFT Fit Finder</div>
+        <div style={{fontSize:13,color:"#676879",marginBottom:20}}>Sign in to continue</div>
+        <label style={lbl}>Email</label>
+        <input type="email" value={email} onChange={e=>setEmail(e.target.value)} required autoFocus style={inp}/>
+        <label style={lbl}>Password</label>
+        <input type="password" value={pass} onChange={e=>setPass(e.target.value)} required style={inp}/>
+        {err && <div style={{color:"#E2445C",fontSize:12.5,marginBottom:12}}>{err}</div>}
+        <button type="submit" style={{width:"100%",background:"#FF6D1F",color:"#fff",border:"none",borderRadius:8,padding:"11px",fontWeight:600,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>Sign in</button>
+      </form>
+    </div>
+  );
+}
+
+function AuthGate(){
+  const [authed,setAuthed]=useState(()=>store.get(AUTH_KEY,false)===true);
+  if(!authed) return <LoginScreen onLogin={()=>setAuthed(true)}/>;
+  return <App onLogout={()=>{ store.set(AUTH_KEY,false); setAuthed(false); }}/>;
+}
+
+function App({onLogout}){
   const [tab,setTab]=useState("home");
   const [ptype,setPtype]=useState("harness");
   const [pname,setPname]=useState("");
@@ -949,7 +1072,7 @@ function App(){
   }).sort((a,z)=>a.pct-z.pct),[saved,ALL]);
   const gaps=coverage.filter(c=>c.grade==="none"||c.grade==="partial");
 
-  const NAVITEMS=[["home","⌂","Home"],["fit","⚖","Fit checker"],["products","🏷","Products"],["library","🐕","Breed library"],["regions","🗺","Regions"],["ask","💬","Ask HUFT Fit"],["coverage","📦","Line coverage"],["feedback","📝","Feedback"]];
+  const NAVITEMS=[["home","⌂","Home"],["fit","⚖","Fit checker"],["products","🏷","Products"],["catalog","📚","Full catalog"],["library","🐕","Breed library"],["regions","🗺","Regions"],["ask","💬","Ask HUFT Fit"],["coverage","📦","Line coverage"],["feedback","📝","Feedback"]];
   const card={background:"#fff",borderRadius:8,border:"1px solid #E6E9EF",padding:16,marginBottom:12};
 
   return (
@@ -972,6 +1095,7 @@ function App(){
         </div>
         <div className="sidestats" style={{borderTop:"1px solid #EAECF2",paddingTop:10,fontSize:11,color:"#9699A6",lineHeight:1.7}}>
           {ALL.length} breeds · all cm<br/>{customBreeds.length} team-added<br/>v5.0 · real sales data
+          {onLogout && <button onClick={onLogout} style={{marginTop:8,border:"1px solid #E6E9EF",background:"#fff",color:"#676879",borderRadius:7,padding:"5px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit",width:"100%"}}>Log out</button>}
         </div>
       </aside>
 
@@ -1207,6 +1331,9 @@ function App(){
         {/* ===== PRODUCTS ===== */}
         {tab==="products" && <ProductsTab skus={skus} all={ALL} onSave={persistSkus} onAsk={(name)=>{setTab("ask");setTimeout(()=>{window.__ASK_PREFILL__&&window.__ASK_PREFILL__(`Which breeds and sizes will the ${name} fit?`);},60);}}/>}
 
+        {/* ===== FULL CATALOG (Odoo export) ===== */}
+        {tab==="catalog" && <CatalogTab/>}
+
         {/* ===== ASK ===== */}
         {tab==="ask" && <AskTab all={ALL}/>}
 
@@ -1245,7 +1372,7 @@ function App(){
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+ReactDOM.createRoot(document.getElementById("root")).render(<AuthGate/>);
 
 /* ============================================================
    SUPABASE UPGRADE PATH (later):
