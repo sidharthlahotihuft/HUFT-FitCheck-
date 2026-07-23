@@ -49,9 +49,9 @@ const { useState, useEffect, useMemo } = React;
    ============================================================ */
 
 const CONF = {
-  A: { label: "A · High", tip: "Published standard or measured study · ±2–3 cm", color: "#00A25B", bg: "#E5F9F0" },
-  B: { label: "B · Medium", tip: "Aggregated sizing charts · ±4–6 cm", color: "#B47500", bg: "#FEF1E5" },
-  C: { label: "C · Estimate", tip: "Estimated from build — fit-lab validation needed · ±8 cm+", color: "#E2445C", bg: "#FCE9EC" },
+  A: { label: "A · High", tip: "Real measurement · ±2–3 cm", color: "#00A25B", bg: "#E5F9F0" },
+  B: { label: "B · Medium", tip: "From sizing charts · ±4–6 cm", color: "#B47500", bg: "#FEF1E5" },
+  C: { label: "C · Estimate", tip: "Estimated, not yet checked · ±8 cm+", color: "#E2445C", bg: "#FCE9EC" },
 };
 
 /* Shared source strings */
@@ -221,7 +221,7 @@ function pullHardware(p){ return p>=5?"Load-rated metal hardware, bar-tack + box
 const MONO = { fontFamily:"'IBM Plex Mono', ui-monospace, monospace" };
 
 /* ---------- small components ---------- */
-const CONF_ROWS=[["A","Published standard or measured field study","± 2–3 cm","#00854D","#E5F9F0"],["B","Aggregated manufacturer sizing charts","± 4–6 cm","#B47500","#FEF1E5"],["C","Estimated from build — fit-lab validation needed","± 8 cm +","#E2445C","#FCE9EC"]];
+const CONF_ROWS=[["A","Real measurement","± 2–3 cm","#00854D","#E5F9F0"],["B","From sizing charts","± 4–6 cm","#B47500","#FEF1E5"],["C","Estimated, not yet checked","± 8 cm +","#E2445C","#FCE9EC"]];
 function ConfBadge({tier,label}){
   const [hov,setHov]=useState(false);
   const c=CONF[tier];
