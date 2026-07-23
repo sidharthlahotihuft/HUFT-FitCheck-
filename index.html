@@ -1290,9 +1290,17 @@ function App({onLogout}){
   };
   const manualEdit=(setter)=>(v)=>{ setter(v); setNoDims(false); };
 
-  const validDims = ptype==="apparel" ? (lengthMin!==""&&lengthMax!==""&&lengthMax>lengthMin)
-    : ptype==="collar" ? (neckMin!==""&&neckMax!==""&&neckMax>neckMin)
-    : (neckMin!==""&&neckMax!==""&&chestMin!==""&&chestMax!==""&&neckMax>neckMin&&chestMax>chestMin);
+  // A single catalog size (e.g. "5XL") carries one fixed measurement, not a range —
+  // min===max in that case. Allow that (>=) rather than requiring a true range (>).
+  const validDims = ptype==="apparel" ? (lengthMin!==""&&lengthMax!==""&&lengthMax>=lengthMin)
+    : ptype==="collar" ? (neckMin!==""&&neckMax!==""&&neckMax>=neckMin)
+    : (neckMin!==""&&neckMax!==""&&chestMin!==""&&chestMax!==""&&neckMax>=neckMin&&chestMax>=chestMin);
+
+  // overlapPct treats a zero-width range as "no overlap" by design (hi<=lo -> 0),
+  // which is right for a genuine range but wrong for one fixed garment measurement —
+  // that should instead be checked with a small real-world fit tolerance around it.
+  const FIT_PAD=2;
+  const padRange=(r)=> (r[0]===r[1] ? [r[0]-FIT_PAD, r[1]+FIT_PAD] : r);
 
   const results=useMemo(()=>{ if(!validDims) return [];
     if(noDims){
@@ -1300,12 +1308,12 @@ function App({onLogout}){
     }
     if(ptype==="apparel"){
       return ALL.map(b=>{ const bodyLen=(b.care&&b.care.bodyLen)||b.height;
-        const lPct=overlapPct(bodyLen,[lengthMin,lengthMax]);
+        const lPct=overlapPct(bodyLen,padRange([lengthMin,lengthMax]));
         return {breed:b,nPct:lPct,cPct:1,combined:lPct,grade:gradeOf(lPct),demand:b.pop};
       }).sort((a,z)=>z.combined-a.combined||z.demand-a.demand);
     }
-    return ALL.map(b=>{ const nPct=overlapPct(b.neck,[neckMin,neckMax]);
-      const cPct=ptype==="harness"?overlapPct(b.chest,[chestMin,chestMax]):1;
+    return ALL.map(b=>{ const nPct=overlapPct(b.neck,padRange([neckMin,neckMax]));
+      const cPct=ptype==="harness"?overlapPct(b.chest,padRange([chestMin,chestMax])):1;
       const combined=ptype==="harness"?Math.min(nPct,cPct):nPct;
       return {breed:b,nPct,cPct,combined,grade:gradeOf(combined),demand:b.pop};
     }).sort((a,z)=>z.combined-a.combined||z.demand-a.demand);
@@ -1455,20 +1463,32 @@ function App({onLogout}){
             })()}
             {fitNote && <p style={{fontSize:12,color:"#565A6E",background:"#F0F1F6",borderRadius:7,padding:"7px 10px",margin:"0 0 14px"}}>{fitNote}</p>}
             <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-              {ptype==="apparel" ? <>
-                <NumBox label="Body length min (cm)" value={lengthMin} onChange={manualEdit(setLengthMin)}/>
-                <NumBox label="Body length max (cm)" value={lengthMax} onChange={manualEdit(setLengthMax)}/>
-              </> : <>
-                <NumBox label="Neck min (cm)" value={neckMin} onChange={manualEdit(setNeckMin)}/>
-                <NumBox label="Neck max (cm)" value={neckMax} onChange={manualEdit(setNeckMax)}/>
-                {ptype==="harness" && <>
-                  <NumBox label="Chest min (cm)" value={chestMin} onChange={manualEdit(setChestMin)}/>
-                  <NumBox label="Chest max (cm)" value={chestMax} onChange={manualEdit(setChestMax)}/>
+              {ptype==="apparel" ? (
+                (lengthMin!==""&&lengthMax!==""&&lengthMin===lengthMax) ? (
+                  <NumBox label="Product length (cm)" value={lengthMin} onChange={v=>{manualEdit(setLengthMin)(v);manualEdit(setLengthMax)(v);}}/>
+                ) : <>
+                  <NumBox label="Body length min (cm)" value={lengthMin} onChange={manualEdit(setLengthMin)}/>
+                  <NumBox label="Body length max (cm)" value={lengthMax} onChange={manualEdit(setLengthMax)}/>
+                </>
+              ) : <>
+                {(neckMin!==""&&neckMax!==""&&neckMin===neckMax) ? (
+                  <NumBox label="Neck size (cm)" value={neckMin} onChange={v=>{manualEdit(setNeckMin)(v);manualEdit(setNeckMax)(v);}}/>
+                ) : <>
+                  <NumBox label="Neck min (cm)" value={neckMin} onChange={manualEdit(setNeckMin)}/>
+                  <NumBox label="Neck max (cm)" value={neckMax} onChange={manualEdit(setNeckMax)}/>
                 </>}
+                {ptype==="harness" && (
+                  (chestMin!==""&&chestMax!==""&&chestMin===chestMax) ? (
+                    <NumBox label="Chest size (cm)" value={chestMin} onChange={v=>{manualEdit(setChestMin)(v);manualEdit(setChestMax)(v);}}/>
+                  ) : <>
+                    <NumBox label="Chest min (cm)" value={chestMin} onChange={manualEdit(setChestMin)}/>
+                    <NumBox label="Chest max (cm)" value={chestMax} onChange={manualEdit(setChestMax)}/>
+                  </>
+                )}
                 <NumBox label="Webbing width (cm)" value={width} onChange={setWidth} min={0.5} max={8}/>
               </>}
             </div>
-            {!validDims && <p style={{color:"#E2445C",fontSize:13,margin:"10px 0 0"}}>Max must be greater than min for each dimension.</p>}
+            {!validDims && <p style={{color:"#E2445C",fontSize:13,margin:"10px 0 0"}}>Max must be greater than or equal to min for each dimension.</p>}
           </section>
 
           {validDims && <>
