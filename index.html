@@ -252,7 +252,9 @@ function IndiaReadyBadge({indiaReady}){
     <span style={{position:"relative",display:"inline-flex"}} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)} onClick={e=>{e.stopPropagation();setHov(h=>!h);}}>
       <span style={{...MONO,fontSize:9.5,fontWeight:700,padding:"2px 8px",borderRadius:999,background:s.bg,color:s.color,border:`1px solid ${s.bd}66`,cursor:"help",whiteSpace:"nowrap"}}>{indiaReady.status==="India-ready"?"🇮🇳 India-ready":"Provisional"} · {indiaReady.score}/5</span>
       {hov && (
-        <span style={{position:"absolute",top:"calc(100% + 8px)",left:0,width:250,background:"#fff",border:"1px solid #E6E9EF",borderRadius:8,boxShadow:"0 8px 28px rgba(50,51,56,0.22)",padding:"10px 11px",zIndex:60,textAlign:"left",whiteSpace:"normal",cursor:"default",fontFamily:"'Rubik',sans-serif"}}>
+        // Offset well past the breed's own neck/chest subtitle line directly below
+        // the badge, so the popup doesn't render on top of (and hide) that data.
+        <span style={{position:"absolute",top:"calc(100% + 30px)",left:0,width:250,background:"#fff",border:"1px solid #E6E9EF",borderRadius:8,boxShadow:"0 8px 28px rgba(50,51,56,0.22)",padding:"10px 11px",zIndex:60,textAlign:"left",whiteSpace:"normal",cursor:"default",fontFamily:"'Rubik',sans-serif"}}>
           <span style={{display:"block",fontSize:11.5,fontWeight:600,color:"#323338",marginBottom:4}}>Indian data readiness — {indiaReady.score}/5</span>
           <span style={{display:"block",fontSize:10.5,lineHeight:1.4,color:"#40434E"}}>{indiaReady.basis}</span>
           <span style={{display:"block",fontSize:10,color:"#9699A6",marginTop:6}}>Fit-critical (neck+chest) confidence <b>{indiaReady.fitConf}</b> · overall <b>{indiaReady.overallConf}</b></span>
@@ -360,7 +362,7 @@ function BreedCard({b,feedback,onAddFeedback,onDelete,defaultOpen}){
   const bad=feedback.filter(f=>f.breed===b.name&&f.verdict==="bad").length;
   const care=b.care||{life:[10,13],shed:3,groom:2,drool:1,skin:2,train:3,bodyLen:[Math.round(b.height[0]*1.02),Math.round(b.height[1]*1.1)]};
   return (
-    <div style={{background:"#fff",borderRadius:8,border:b.custom?"1.5px dashed #676879":bad?"1.5px solid #F0A6B4":"1px solid #E6E9EF",marginBottom:10,overflow:open?"visible":"hidden"}}>
+    <div style={{background:"#fff",borderRadius:8,border:b.custom?"1.5px dashed #676879":bad?"1.5px solid #F0A6B4":"1px solid #E6E9EF",marginBottom:10,overflow:"visible"}}>
       <button onClick={()=>setOpen(!open)} style={{display:"flex",width:"100%",justifyContent:"space-between",alignItems:"center",gap:10,padding:"13px 16px",border:"none",background:"transparent",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
         <div style={{minWidth:0}}>
           <div style={{fontWeight:700,fontSize:15,color:"#323338",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>{b.name} {b.huft && <span title="HUFT shop-by-breed priority" style={{fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:999,background:"#FF6D1F",color:"#fff",verticalAlign:"middle"}}>HUFT SIX</span>} {b.custom && <span style={{fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:999,background:"#F0F1F6",color:"#565A6E",verticalAlign:"middle"}}>TEAM-ADDED</span>} <IndiaReadyBadge indiaReady={b.indiaReady}/> {bad>0 && <span title="Team flagged data issues" style={{fontSize:11,color:"#E2445C"}}>⚑ {bad}</span>}</div>
@@ -705,46 +707,60 @@ function curatedSkuToProduct(sk){
    Leash's "Length" is never mistaken for a Clothing item's body length). */
 // Dims for a single variant (one size) of a product — used both to build the
 // whole-product aggregate below and to let the Fit Checker load just one size.
+// Any parsed attribute that isn't neck/girth/clothing-length still matters —
+// e.g. a leash's own "Length", or a collar's "Width" — so it's kept as `extra`
+// instead of being silently dropped, for other variants that carry multiple
+// distinct attributes.
 function dimsOfVariant(product, v){
-  if(!v) return {neck:null,chest:null,length:null};
+  if(!v) return {neck:null,chest:null,length:null,extra:[]};
   if(v.raw){
     const r=v.raw;
     return {
       neck: r.neckMin!=null ? [r.neckMin, r.neckMax] : null,
       chest: r.chestMin!=null ? [r.chestMin, r.chestMax] : null,
       length: r.lengthMin!=null ? [r.lengthMin, r.lengthMax] : null,
+      extra: [],
     };
   }
-  const neck=[], chest=[], length=[];
+  const neck=[], chest=[], length=[]; const extraMap={};
   (v.dimParsed||[]).forEach(d=>{
     const lbl=(d.label||"").toLowerCase();
     const lo=d.value, hi=(d.valueMax!=null?d.valueMax:d.value);
     if(lbl.includes("neck")){ neck.push(lo); neck.push(hi); }
     else if(lbl.includes("girth")){ chest.push(lo); chest.push(hi); }
     else if(lbl==="length" && product.category==="Clothing"){ length.push(lo); length.push(hi); }
+    else {
+      const key=d.label||"Attribute";
+      (extraMap[key]=extraMap[key]||[]).push(lo, hi);
+    }
   });
+  const extra=Object.entries(extraMap).map(([label,vals])=>({label, range:[Math.min(...vals),Math.max(...vals)]}));
   return {
     neck: neck.length?[Math.min(...neck),Math.max(...neck)]:null,
     chest: chest.length?[Math.min(...chest),Math.max(...chest)]:null,
     length: length.length?[Math.min(...length),Math.max(...length)]:null,
+    extra,
   };
 }
 
 function aggregateDims(product, variant){
-  if(!product) return {neck:null,chest:null,length:null};
+  if(!product) return {neck:null,chest:null,length:null,extra:[]};
   if(variant) return dimsOfVariant(product, variant);
-  if(product.agg) return product.agg;
-  const neck=[], chest=[], length=[];
+  if(product.agg) return {extra:[], ...product.agg};
+  const neck=[], chest=[], length=[]; const extraMap={};
   (product.variants||[]).forEach(v=>{
     const d=dimsOfVariant(product,v);
     if(d.neck){ neck.push(d.neck[0]); neck.push(d.neck[1]); }
     if(d.chest){ chest.push(d.chest[0]); chest.push(d.chest[1]); }
     if(d.length){ length.push(d.length[0]); length.push(d.length[1]); }
+    (d.extra||[]).forEach(e=>{ (extraMap[e.label]=extraMap[e.label]||[]).push(e.range[0], e.range[1]); });
   });
+  const extra=Object.entries(extraMap).map(([label,vals])=>({label, range:[Math.min(...vals),Math.max(...vals)]}));
   return {
     neck: neck.length?[Math.min(...neck),Math.max(...neck)]:null,
     chest: chest.length?[Math.min(...chest),Math.max(...chest)]:null,
     length: length.length?[Math.min(...length),Math.max(...length)]:null,
+    extra,
   };
 }
 
@@ -1217,6 +1233,7 @@ function App({onLogout}){
   const [fitProductName,setFitProductName]=useState("");
   const [fitVariantSize,setFitVariantSize]=useState("");
   const [fitNote,setFitNote]=useState("");
+  const [fitExtra,setFitExtra]=useState([]);
   const [noDims,setNoDims]=useState(false);
   const [gradeFilter,setGradeFilter]=useState(null);
   const [query,setQuery]=useState("");
@@ -1253,6 +1270,10 @@ function App({onLogout}){
   // a plain value ("29 cm"), not a zero-width "range" ("29–29 cm").
   const fmtDim=(r)=> r[0]===r[1] ? `${r[0]} cm` : `${r[0]}–${r[1]} cm`;
   const applyDimsFromAgg=(agg,label,name)=>{
+    // Never drop attributes a variant carries beyond neck/chest/length (e.g. a
+    // leash's own length, a collar's width) — keep them visible as extra context
+    // even though they don't feed the breed-fit percentage.
+    setFitExtra(agg.extra||[]);
     if(agg.length){
       setNoDims(false);
       setPtype("apparel"); setLengthMin(agg.length[0]); setLengthMax(agg.length[1]);
@@ -1268,15 +1289,17 @@ function App({onLogout}){
       setFitNote(`Loaded neck ${fmtDim(agg.neck)} ${label}.`);
     } else {
       setNoDims(true);
-      setFitNote(`"${name}" doesn't have structured neck/chest/length measurements to auto-fill — showing No fit for all breeds until you enter dimensions manually below.`);
+      const extraList=(agg.extra||[]).map(e=>e.label.toLowerCase()+" "+fmtDim(e.range)).join(", ");
+      const extraBit=extraList ? (" It does carry "+extraList+", but that's not a dog-fit measurement.") : "";
+      setFitNote(`"${name}" doesn't have structured neck/chest/length measurements to auto-fill.${extraBit} Showing No fit for all breeds until you enter dimensions manually below.`);
     }
   };
   const applyProduct=(name)=>{
     setFitProductName(name);
     setFitVariantSize("");
-    if(!name){ setFitNote(""); setNoDims(false); return; }
+    if(!name){ setFitNote(""); setNoDims(false); setFitExtra([]); return; }
     const p=fullCatalog.find(x=>x.name===name);
-    if(!p){ setFitNote(""); setNoDims(false); return; }
+    if(!p){ setFitNote(""); setNoDims(false); setFitExtra([]); return; }
     const label=`across ${p.variants.length} size${p.variants.length>1?"s":""} of "${name}"`;
     applyDimsFromAgg(aggregateDims(p), label, name);
   };
@@ -1466,6 +1489,15 @@ function App({onLogout}){
               );
             })()}
             {fitNote && <p style={{fontSize:12,color:"#565A6E",background:"#F0F1F6",borderRadius:7,padding:"7px 10px",margin:"0 0 14px"}}>{fitNote}</p>}
+            {fitExtra.length>0 && !noDims && (
+              <div style={{display:"flex",gap:6,flexWrap:"wrap",margin:"-8px 0 14px"}}>
+                {fitExtra.map(e=>(
+                  <span key={e.label} style={{fontSize:11,color:"#565A6E",background:"#fff",border:"1.5px solid #E6E9EF",borderRadius:999,padding:"3px 10px"}}>
+                    {e.label}: {fmtDim(e.range)}
+                  </span>
+                ))}
+              </div>
+            )}
             <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
               {ptype==="apparel" ? (
                 (lengthMin!==""&&lengthMax!==""&&lengthMin===lengthMax) ? (
