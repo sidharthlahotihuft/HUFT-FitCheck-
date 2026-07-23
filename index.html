@@ -1191,7 +1191,6 @@ function App({onLogout}){
   const [grp,setGrp]=useState("All");
   const [readyFilter,setReadyFilter]=useState("All");
   const [askOpen,setAskOpen]=useState(false);
-  const [regionFocus,setRegionFocus]=useState("all");
   const [regionTab,setRegionTab]=useState("n");
   const [saved,setSaved]=useState(()=>store.get(KEY_PRODUCTS,[]));
   const [feedback,setFeedback]=useState(()=>store.get(KEY_FEEDBACK,[]));
@@ -1243,20 +1242,18 @@ function App({onLogout}){
     : (neckMin!==""&&neckMax!==""&&chestMin!==""&&chestMax!==""&&neckMax>neckMin&&chestMax>chestMin);
 
   const results=useMemo(()=>{ if(!validDims) return [];
-    const pool = regionFocus==="all" ? ALL : ALL.filter(b=>b.regions[regionFocus]>0);
-    const demand = b => regionFocus==="all" ? b.pop : b.regions[regionFocus];
     if(ptype==="apparel"){
-      return pool.map(b=>{ const bodyLen=(b.care&&b.care.bodyLen)||b.height;
+      return ALL.map(b=>{ const bodyLen=(b.care&&b.care.bodyLen)||b.height;
         const lPct=overlapPct(bodyLen,[lengthMin,lengthMax]);
-        return {breed:b,nPct:lPct,cPct:1,combined:lPct,grade:gradeOf(lPct),demand:demand(b)};
+        return {breed:b,nPct:lPct,cPct:1,combined:lPct,grade:gradeOf(lPct),demand:b.pop};
       }).sort((a,z)=>z.combined-a.combined||z.demand-a.demand);
     }
-    return pool.map(b=>{ const nPct=overlapPct(b.neck,[neckMin,neckMax]);
+    return ALL.map(b=>{ const nPct=overlapPct(b.neck,[neckMin,neckMax]);
       const cPct=ptype==="harness"?overlapPct(b.chest,[chestMin,chestMax]):1;
       const combined=ptype==="harness"?Math.min(nPct,cPct):nPct;
-      return {breed:b,nPct,cPct,combined,grade:gradeOf(combined),demand:demand(b)};
+      return {breed:b,nPct,cPct,combined,grade:gradeOf(combined),demand:b.pop};
     }).sort((a,z)=>z.combined-a.combined||z.demand-a.demand);
-  },[ptype,neckMin,neckMax,chestMin,chestMax,lengthMin,lengthMax,validDims,regionFocus]);
+  },[ptype,neckMin,neckMax,chestMin,chestMax,lengthMin,lengthMax,validDims,ALL]);
 
   const counts=useMemo(()=>{const c={full:0,good:0,partial:0,none:0};results.forEach(r=>c[r.grade]++);return c;},[results]);
 
@@ -1361,30 +1358,17 @@ function App({onLogout}){
         {tab==="fit" && <>
           <section style={card}>
             <h3 style={{margin:"0 0 4px",fontSize:14.5}}>Pick a product from the catalog</h3>
-            <p style={{fontSize:12,color:"#676879",margin:"0 0 10px"}}>Choose a category, sub-category and product — dimensions load automatically from {fullCatalog.length.toLocaleString()} products in the HUFT Catalog. Or leave it on manual entry and type dimensions directly below.</p>
+            <p style={{fontSize:12,color:"#676879",margin:"0 0 10px"}}>Choose a category and a product — dimensions load automatically from {fullCatalog.length.toLocaleString()} products in the HUFT Catalog. Or leave it on manual entry and type dimensions directly below.</p>
             <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
               <select value={fitCat} onChange={e=>{setFitCat(e.target.value);setFitSub("All");setFitProductName("");setFitNote("");}} style={{padding:"9px 10px",borderRadius:8,border:"1.5px solid #C3C6D4",fontSize:13,fontFamily:"inherit",background:"#fff"}}>
                 {fitCatOptions.map(c=><option key={c} value={c}>{c==="All"?"All categories":c}</option>)}
-              </select>
-              <select value={fitSub} onChange={e=>{setFitSub(e.target.value);setFitProductName("");setFitNote("");}} style={{padding:"9px 10px",borderRadius:8,border:"1.5px solid #C3C6D4",fontSize:13,fontFamily:"inherit",background:"#fff"}}>
-                {fitSubOptions.map(s=><option key={s} value={s}>{s==="All"?"All sub-categories":s}</option>)}
               </select>
               <select value={fitProductName} onChange={e=>applyProduct(e.target.value)} style={{flex:1,minWidth:200,padding:"9px 10px",borderRadius:8,border:"1.5px solid #C3C6D4",fontSize:13,fontFamily:"inherit",background:"#fff"}}>
                 <option value="">— Manual entry (no product selected) —</option>
                 {fitProductOptions.slice(0,500).map(p=><option key={p.name} value={p.name}>{p.name}</option>)}
               </select>
             </div>
-            {fitNote && <p style={{fontSize:12,color:"#565A6E",background:"#F0F1F6",borderRadius:7,padding:"7px 10px",margin:"0 0 10px"}}>{fitNote}</p>}
-            <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
-              {["harness","collar","apparel"].map(t=>(
-                <button key={t} onClick={()=>setPtype(t)} style={{padding:"8px 18px",borderRadius:8,cursor:"pointer",fontWeight:600,fontSize:14,fontFamily:"inherit",border:ptype===t?"1.5px solid #323338":"1.5px solid #C3C6D4",background:ptype===t?"#323338":"#fff",color:ptype===t?"#F6C445":"#676879"}}>{t==="harness"?"Harness":t==="collar"?"Collar":"Apparel"}</button>
-              ))}
-              <select value={regionFocus} onChange={e=>setRegionFocus(e.target.value)} title="Rank results by regional demand" style={{padding:"9px 10px",borderRadius:8,border:"1.5px solid #C3C6D4",fontSize:13,fontFamily:"inherit",background:"#fff",color:regionFocus==="all"?"#676879":"#323338",fontWeight:600}}>
-                <option value="all">All India</option>
-                {Object.values(REGIONS).map(r=><option key={r.key} value={r.key}>{r.label} zone</option>)}
-              </select>
-            </div>
-            {regionFocus!=="all" && <p style={{fontSize:12,color:"#676879",margin:"0 0 10px"}}>Ranking by demand in <b>{REGIONS[regionFocus].label}</b> ({REGIONS[regionFocus].cities}); breeds with zero regional presence hidden.</p>}
+            {fitNote && <p style={{fontSize:12,color:"#565A6E",background:"#F0F1F6",borderRadius:7,padding:"7px 10px",margin:"0 0 14px"}}>{fitNote}</p>}
             <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
               {ptype==="apparel" ? <>
                 <NumBox label="Body length min (cm)" value={lengthMin} onChange={setLengthMin}/>
@@ -1424,7 +1408,7 @@ function App({onLogout}){
               return (
               <div key={b.name} style={{...card,padding:"13px 14px",opacity:grade==="none"?0.62:1}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                  <div style={{fontWeight:700,fontSize:15}}>{b.name} <span style={{fontWeight:400,fontSize:12,color:"#9699A6"}}>· {b.group} · {regionFocus==="all"?"★".repeat(b.pop):`${REGIONS[regionFocus].label} ${"★".repeat(demand)}`}</span> <ConfBadge tier={worstConf}/></div>
+                  <div style={{fontWeight:700,fontSize:15}}>{b.name} <span style={{fontWeight:400,fontSize:12,color:"#9699A6"}}>· {b.group} · {"★".repeat(b.pop)}</span> <ConfBadge tier={worstConf}/></div>
                   <span style={{fontSize:12,fontWeight:700,padding:"3px 10px",borderRadius:999,background:GRADE[grade].bg,color:GRADE[grade].color}}>{GRADE[grade].label}</span>
                 </div>
                 <div style={{marginTop:10,display:"grid",gap:8}}>
