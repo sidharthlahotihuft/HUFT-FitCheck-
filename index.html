@@ -1186,6 +1186,7 @@ function App({onLogout}){
   const [fitSub,setFitSub]=useState("All");
   const [fitProductName,setFitProductName]=useState("");
   const [fitNote,setFitNote]=useState("");
+  const [noDims,setNoDims]=useState(false);
   const [gradeFilter,setGradeFilter]=useState(null);
   const [query,setQuery]=useState("");
   const [grp,setGrp]=useState("All");
@@ -1219,29 +1220,37 @@ function App({onLogout}){
   const fitProductOptions = useMemo(()=>fullCatalog.filter(p=>(fitCat==="All"||p.category===fitCat)&&(fitSub==="All"||p.subCategory===fitSub)),[fullCatalog,fitCat,fitSub]);
   const applyProduct=(name)=>{
     setFitProductName(name);
-    if(!name){ setFitNote(""); return; }
+    if(!name){ setFitNote(""); setNoDims(false); return; }
     const p=fullCatalog.find(x=>x.name===name);
-    if(!p){ setFitNote(""); return; }
+    if(!p){ setFitNote(""); setNoDims(false); return; }
     const agg=aggregateDims(p);
     if(agg.length){
+      setNoDims(false);
       setPtype("apparel"); setLengthMin(agg.length[0]); setLengthMax(agg.length[1]);
       setFitNote(`Loaded body-length range ${agg.length[0]}–${agg.length[1]} cm across ${p.variants.length} size${p.variants.length>1?"s":""} of "${name}".`);
     } else if(agg.chest){
+      setNoDims(false);
       setPtype("harness"); if(agg.neck){setNeckMin(agg.neck[0]);setNeckMax(agg.neck[1]);} setChestMin(agg.chest[0]); setChestMax(agg.chest[1]);
       setFitNote(`Loaded neck & chest range across ${p.variants.length} size${p.variants.length>1?"s":""} of "${name}".`);
     } else if(agg.neck){
+      setNoDims(false);
       setPtype("collar"); setNeckMin(agg.neck[0]); setNeckMax(agg.neck[1]);
       setFitNote(`Loaded neck range across ${p.variants.length} size${p.variants.length>1?"s":""} of "${name}".`);
     } else {
-      setFitNote(`"${name}" doesn't have structured neck/chest/length measurements to auto-fill — enter dimensions manually below.`);
+      setNoDims(true);
+      setFitNote(`"${name}" doesn't have structured neck/chest/length measurements to auto-fill — showing No fit for all breeds until you enter dimensions manually below.`);
     }
   };
+  const manualEdit=(setter)=>(v)=>{ setter(v); setNoDims(false); };
 
   const validDims = ptype==="apparel" ? (lengthMin!==""&&lengthMax!==""&&lengthMax>lengthMin)
     : ptype==="collar" ? (neckMin!==""&&neckMax!==""&&neckMax>neckMin)
     : (neckMin!==""&&neckMax!==""&&chestMin!==""&&chestMax!==""&&neckMax>neckMin&&chestMax>chestMin);
 
   const results=useMemo(()=>{ if(!validDims) return [];
+    if(noDims){
+      return ALL.map(b=>({breed:b,nPct:0,cPct:0,combined:0,grade:"none",demand:b.pop})).sort((a,z)=>z.demand-a.demand);
+    }
     if(ptype==="apparel"){
       return ALL.map(b=>{ const bodyLen=(b.care&&b.care.bodyLen)||b.height;
         const lPct=overlapPct(bodyLen,[lengthMin,lengthMax]);
@@ -1253,7 +1262,7 @@ function App({onLogout}){
       const combined=ptype==="harness"?Math.min(nPct,cPct):nPct;
       return {breed:b,nPct,cPct,combined,grade:gradeOf(combined),demand:b.pop};
     }).sort((a,z)=>z.combined-a.combined||z.demand-a.demand);
-  },[ptype,neckMin,neckMax,chestMin,chestMax,lengthMin,lengthMax,validDims,ALL]);
+  },[ptype,neckMin,neckMax,chestMin,chestMax,lengthMin,lengthMax,validDims,noDims,ALL]);
 
   const counts=useMemo(()=>{const c={full:0,good:0,partial:0,none:0};results.forEach(r=>c[r.grade]++);return c;},[results]);
 
@@ -1371,14 +1380,14 @@ function App({onLogout}){
             {fitNote && <p style={{fontSize:12,color:"#565A6E",background:"#F0F1F6",borderRadius:7,padding:"7px 10px",margin:"0 0 14px"}}>{fitNote}</p>}
             <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
               {ptype==="apparel" ? <>
-                <NumBox label="Body length min (cm)" value={lengthMin} onChange={setLengthMin}/>
-                <NumBox label="Body length max (cm)" value={lengthMax} onChange={setLengthMax}/>
+                <NumBox label="Body length min (cm)" value={lengthMin} onChange={manualEdit(setLengthMin)}/>
+                <NumBox label="Body length max (cm)" value={lengthMax} onChange={manualEdit(setLengthMax)}/>
               </> : <>
-                <NumBox label="Neck min (cm)" value={neckMin} onChange={setNeckMin}/>
-                <NumBox label="Neck max (cm)" value={neckMax} onChange={setNeckMax}/>
+                <NumBox label="Neck min (cm)" value={neckMin} onChange={manualEdit(setNeckMin)}/>
+                <NumBox label="Neck max (cm)" value={neckMax} onChange={manualEdit(setNeckMax)}/>
                 {ptype==="harness" && <>
-                  <NumBox label="Chest min (cm)" value={chestMin} onChange={setChestMin}/>
-                  <NumBox label="Chest max (cm)" value={chestMax} onChange={setChestMax}/>
+                  <NumBox label="Chest min (cm)" value={chestMin} onChange={manualEdit(setChestMin)}/>
+                  <NumBox label="Chest max (cm)" value={chestMax} onChange={manualEdit(setChestMax)}/>
                 </>}
                 <NumBox label="Webbing width (cm)" value={width} onChange={setWidth} min={0.5} max={8}/>
               </>}

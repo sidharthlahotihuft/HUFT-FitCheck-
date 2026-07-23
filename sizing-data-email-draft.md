@@ -6,6 +6,8 @@ Agreed on that, with two clarifications from my side. First, when I said the cha
 
 Data is what turns this from anecdote into a metric we'd trust. And the starting point should be our own sales behaviour, not the chart — return/exchange rates by size, city and breed, repeat-purchase size drift, cart abandonment on sizing. That's the diagnosis; the chart mapping is just the fix.
 
+This isn't theoretical — the breed research I've already put together (the Indian-Readiness dataset) shows exactly how thin the ground truth is today: only a handful of breeds have real Indian measurements, the rest are Western-chart estimates, and every single time a real measurement has come in to replace one, the estimate was wrong. That's the clearest evidence yet that not enough sizing study has been done for the Indian market specifically, and it's exactly the gap I want us to close. The starting point for that study isn't a blank page — it's this existing dataset. Whatever data we already have is where any new study should begin, not something we set aside to start fresh.
+
 To sharpen it, we should pull in: fit-lab measurements, return/exchange data, local market/tailor size conventions, 3P apparel brand size charts as a market benchmark, customer self-reported sizes at checkout, and the PawSuite retail feedback loop we're setting up — our store staff fitting dogs in person are our best ground truth.
 
 This also isn't apparel-only — it should become a shared source of truth in line with the HUFT Belonging project I shared separately, and it's the data backbone HUFT TryOn (app + website, launching in a few months) will need to launch properly calibrated.
