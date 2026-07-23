@@ -648,8 +648,39 @@ function answerQuestion(q, all){
 }
 
 /* ---------- Products tab ---------- */
-function CatalogTab(){
-  const catalog = (typeof PRODUCT_CATALOG !== "undefined") ? PRODUCT_CATALOG : [];
+const KEY_CUSTOM_PRODUCTS = "huft_fit_custom_products";
+
+function curatedSkuToProduct(sk){
+  return {
+    name: sk.name,
+    category: sk.type==="apparel" ? "Clothing" : "Collars, Leashes & Harnesses",
+    subCategory: sk.type==="apparel" ? "Apparel (auto-sized)" : sk.type==="harness" ? "Harness" : "Collar",
+    petType: "Dog",
+    collection: null,
+    season: null,
+    image: null,
+    url: sk.url,
+    fitMatched: true,
+    variants: sk.variants.map(v=>({
+      size: v.size,
+      sku: sk.id+"-"+v.size,
+      dimension: sk.type==="apparel"
+        ? (v.lengthMax>=999 ? `Body length ${v.lengthMin}+ cm` : `Body length ${v.lengthMin}–${v.lengthMax} cm`)
+        : `Neck ${v.neckMin??"–"}–${v.neckMax??"–"} cm · Chest ${v.chestMin}–${v.chestMax} cm`,
+    })),
+  };
+}
+
+function CatalogTab({curatedSkus,onAsk}){
+  const [customProducts,setCustomProducts]=useState(()=>store.get(KEY_CUSTOM_PRODUCTS,[]));
+  const [showAdd,setShowAdd]=useState(false);
+  const odoo = (typeof PRODUCT_CATALOG !== "undefined") ? PRODUCT_CATALOG : [];
+  const curated = useMemo(()=>(curatedSkus||[]).map(curatedSkuToProduct),[curatedSkus]);
+  const catalog = useMemo(()=>[...curated,...odoo,...customProducts],[curated,odoo,customProducts]);
+
+  const addProduct=(p)=>{ const l=[...customProducts,p]; setCustomProducts(l); store.set(KEY_CUSTOM_PRODUCTS,l); setShowAdd(false); };
+  const removeProduct=(name)=>{ if(!window.confirm(`Remove "${name}"?`)) return; const l=customProducts.filter(p=>p.name!==name); setCustomProducts(l); store.set(KEY_CUSTOM_PRODUCTS,l); };
+
   const [q,setQ]=useState("");
   const [cat,setCat]=useState("All");
   const [sub,setSub]=useState("All");
@@ -671,12 +702,17 @@ function CatalogTab(){
   const card={background:"#fff",borderRadius:8,border:"1px solid #E6E9EF",padding:16,marginBottom:12};
   const sel={padding:"6px 10px",borderRadius:7,border:"1px solid #C3C6D4",fontSize:12.5,fontFamily:"inherit",background:"#fff"};
 
+  if(showAdd) return <AddProductForm onAdd={addProduct} onClose={()=>setShowAdd(false)}/>;
+
   return (
     <React.Fragment>
       <section style={card}>
-        <div style={{marginBottom:10}}>
-          <h3 style={{margin:0,fontSize:15}}>Full product catalog</h3>
-          <p style={{fontSize:12.5,color:"#676879",margin:"4px 0 0"}}>{catalog.length.toLocaleString()} products · {totalSkus.toLocaleString()} SKUs — imported from the HUFT Odoo export (Odoo data sheet).</p>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap",marginBottom:10}}>
+          <div>
+            <h3 style={{margin:0,fontSize:15}}>HUFT Catalog</h3>
+            <p style={{fontSize:12.5,color:"#676879",margin:"4px 0 0"}}>{catalog.length.toLocaleString()} products · {totalSkus.toLocaleString()} SKUs — {odoo.length.toLocaleString()} from the Odoo export, {curated.length} fit-matched, {customProducts.length} team-added.</p>
+          </div>
+          <button onClick={()=>setShowAdd(true)} style={{background:"#FF6D1F",color:"#fff",border:"none",borderRadius:8,padding:"9px 18px",fontWeight:600,fontSize:13.5,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>+ Add product</button>
         </div>
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search product name…"
           style={{width:"100%",boxSizing:"border-box",padding:"9px 14px",borderRadius:8,border:"1.5px solid #E6E9EF",fontSize:13.5,fontFamily:"inherit",marginBottom:10}}/>
@@ -693,7 +729,7 @@ function CatalogTab(){
           <span style={{fontSize:12,color:"#9699A6"}}>{filtered.length.toLocaleString()} match{filtered.length===1?"":"es"}</span>
         </div>
       </section>
-      {catalog.length===0 && <p style={{textAlign:"center",color:"#9699A6"}}>Catalog data not loaded — check that products-catalog.js is present alongside index.html.</p>}
+      {odoo.length===0 && <p style={{textAlign:"center",color:"#9699A6",fontSize:12.5}}>Odoo catalog data not loaded — check that products-catalog.js is present alongside index.html. Fit-matched and team-added products still show below.</p>}
       {filtered.slice(0,300).map((p,i)=>{
         const open=expanded===i;
         const hasImg = p.image && /^https?:\/\//.test(p.image);
@@ -704,8 +740,16 @@ function CatalogTab(){
               : <div style={{width:56,height:56,borderRadius:8,background:"#F5F6F8",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>📦</div>}
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
-                <div style={{fontWeight:700,fontSize:14}}>{p.name}</div>
-                <button onClick={()=>setExpanded(open?null:i)} style={{border:"1px solid #E6E9EF",background:"#fff",borderRadius:7,padding:"3px 10px",fontSize:11.5,cursor:"pointer",fontFamily:"inherit",color:"#40434E",flexShrink:0}}>{open?"Hide":`${p.variants.length} size${p.variants.length>1?"s":""}`}</button>
+                <div style={{fontWeight:700,fontSize:14,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                  {p.name}
+                  {p.fitMatched && <span style={{fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:999,background:"#E5F9F0",color:"#00854D"}}>FIT-MATCHED</span>}
+                  {p.custom && <span style={{fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:999,background:"#F0F1F6",color:"#565A6E"}}>TEAM-ADDED</span>}
+                </div>
+                <div style={{display:"flex",gap:6,flexShrink:0}}>
+                  {p.fitMatched && <button onClick={()=>onAsk&&onAsk(p.name)} style={{border:"1px solid #FF6D1F",background:"#fff",color:"#FF6D1F",borderRadius:7,padding:"3px 10px",fontSize:11.5,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>Ask fit →</button>}
+                  {p.custom && <button onClick={()=>removeProduct(p.name)} style={{border:"1px solid #E6E9EF",background:"#fff",color:"#E2445C",borderRadius:7,padding:"3px 10px",fontSize:11.5,cursor:"pointer",fontFamily:"inherit"}}>Remove</button>}
+                  <button onClick={()=>setExpanded(open?null:i)} style={{border:"1px solid #E6E9EF",background:"#fff",borderRadius:7,padding:"3px 10px",fontSize:11.5,cursor:"pointer",fontFamily:"inherit",color:"#40434E"}}>{open?"Hide":`${p.variants.length} size${p.variants.length>1?"s":""}`}</button>
+                </div>
               </div>
               <div style={{fontSize:11.5,color:"#9699A6",marginTop:2}}>{p.category} · {p.subCategory} · {p.petType}{p.collection?` · ${p.collection}`:""}</div>
               {open && (
@@ -719,8 +763,79 @@ function CatalogTab(){
           </div>
         );
       })}
+      {filtered.length===0 && <p style={{textAlign:"center",color:"#9699A6"}}>No products match — clear the search or filters.</p>}
       {filtered.length>300 && <p style={{textAlign:"center",color:"#9699A6",fontSize:12.5}}>Showing first 300 of {filtered.length.toLocaleString()} — narrow your search or filters to see more.</p>}
     </React.Fragment>
+  );
+}
+
+/* ---------- add-a-product form (Odoo-style fields) ---------- */
+function AddProductForm({onAdd,onClose}){
+  const [name,setName]=useState("");
+  const [category,setCategory]=useState("Clothing");
+  const [subCategory,setSubCategory]=useState("");
+  const [petType,setPetType]=useState("Dog");
+  const [collection,setCollection]=useState("");
+  const [image,setImage]=useState("");
+  const [variants,setVariants]=useState([{size:"M",dimension:"Length - 30 cm"}]);
+  const [err,setErr]=useState("");
+  const inp={fontFamily:"inherit",fontSize:13.5,fontWeight:500,padding:"7px 9px",borderRadius:7,border:"1.5px solid #C3C6D4",width:"100%",boxSizing:"border-box"};
+  const lbl={fontSize:10.5,letterSpacing:"0.05em",textTransform:"uppercase",color:"#676879",fontWeight:600,display:"block",marginBottom:3};
+  const sel={...inp,background:"#fff"};
+  const setVariant=(i,k,v)=>setVariants(vs=>vs.map((row,j)=>j===i?{...row,[k]:v}:row));
+  const addRow=()=>setVariants(vs=>[...vs,{size:"",dimension:""}]);
+  const rmRow=i=>setVariants(vs=>vs.filter((_,j)=>j!==i));
+  const submit=()=>{
+    if(!name.trim()) return setErr("Product name is required.");
+    if(!subCategory.trim()) return setErr("Sub-category is required (e.g. Harness, T-Shirt, Chew Toy).");
+    const cleanVariants=variants.filter(v=>v.size.trim());
+    if(!cleanVariants.length) return setErr("At least one size is required.");
+    onAdd({
+      name:name.trim(), category, subCategory:subCategory.trim(), petType, collection:collection.trim()||null,
+      season:null, image:image.trim()||null, custom:true,
+      variants:cleanVariants.map((v,i)=>({size:v.size.trim(), sku:"CUSTOM-"+Date.now()+"-"+i, dimension:v.dimension.trim()})),
+    });
+  };
+  return (
+    <section style={{background:"#fff",borderRadius:8,border:"1.5px solid #FF6D1F",padding:16,marginBottom:12}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <h3 style={{margin:0,fontSize:15}}>Add a product</h3>
+        <button onClick={onClose} style={{border:"1px solid #E6E9EF",background:"#fff",borderRadius:7,padding:"4px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit",color:"#676879"}}>Cancel</button>
+      </div>
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
+        <div style={{flex:2,minWidth:200}}><span style={lbl}>Product name</span><input value={name} onChange={e=>setName(e.target.value)} placeholder="HUFT Magical Mist Raincoat For Pets - Coral" style={inp}/></div>
+        <div style={{flex:1,minWidth:140}}><span style={lbl}>Category</span>
+          <select value={category} onChange={e=>setCategory(e.target.value)} style={sel}>
+            <option>Clothing</option><option>Collars, Leashes & Harnesses</option><option>Pet Toys</option><option>Other</option>
+          </select>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
+        <div style={{flex:1,minWidth:160}}><span style={lbl}>Sub-category</span><input value={subCategory} onChange={e=>setSubCategory(e.target.value)} placeholder="e.g. Raincoat, Harness, Chew Toy" style={inp}/></div>
+        <div style={{flex:1,minWidth:120}}><span style={lbl}>Pet type</span>
+          <select value={petType} onChange={e=>setPetType(e.target.value)} style={sel}>
+            <option>Dog</option><option>Cat</option><option>Dog/Cat</option>
+          </select>
+        </div>
+        <div style={{flex:1,minWidth:140}}><span style={lbl}>Collection (optional)</span><input value={collection} onChange={e=>setCollection(e.target.value)} placeholder="e.g. Monsoon 24" style={inp}/></div>
+      </div>
+      <div style={{marginBottom:10}}><span style={lbl}>Image URL (optional)</span><input value={image} onChange={e=>setImage(e.target.value)} placeholder="https://cdn.shopify.com/…" style={inp}/></div>
+      <span style={lbl}>Sizes & dimensions</span>
+      <div style={{display:"grid",gap:6,marginTop:4}}>
+        {variants.map((v,i)=>(
+          <div key={i} style={{display:"flex",gap:6,alignItems:"center"}}>
+            <input value={v.size} onChange={e=>setVariant(i,"size",e.target.value)} placeholder="Size (e.g. M)" style={{...inp,maxWidth:110}}/>
+            <input value={v.dimension} onChange={e=>setVariant(i,"dimension",e.target.value)} placeholder="Dimension (e.g. Length - 30 cm)" style={inp}/>
+            {variants.length>1 && <button onClick={()=>rmRow(i)} style={{border:"none",background:"transparent",color:"#E2445C",cursor:"pointer",fontSize:16,flexShrink:0}}>×</button>}
+          </div>
+        ))}
+      </div>
+      <button onClick={addRow} style={{marginTop:8,border:"1px dashed #C3C6D4",background:"#fff",borderRadius:7,padding:"6px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"inherit",color:"#676879"}}>+ Add size</button>
+      {err && <p style={{color:"#E2445C",fontSize:13,margin:"12px 0 0"}}>{err}</p>}
+      <div style={{marginTop:14}}>
+        <button onClick={submit} style={{background:"#FF6D1F",color:"#fff",border:"none",borderRadius:8,padding:"9px 20px",fontSize:13.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Add product</button>
+      </div>
+    </section>
   );
 }
 
@@ -864,6 +979,22 @@ function AskTab({all}){
         {chips.map(c=><button key={c} onClick={()=>send(c)} style={{padding:"6px 13px",borderRadius:999,border:"1.5px solid #E6E9EF",background:"#fff",color:"#676879",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{c}</button>)}
       </div>
       <p style={{fontSize:11.5,color:"#9699A6",lineHeight:1.55}}>This engine is rule-based and answers strictly from the portal's breed database — it runs fully in the browser at zero API cost. It can later be upgraded to Claude via a small serverless function (keeps the API key off the client); the data layer stays the same.</p>
+    </React.Fragment>
+  );
+}
+
+/* ---------- floating Ask HUFT Fit widget (available on every tab) ---------- */
+function AskWidget({open,onToggle,all}){
+  return (
+    <React.Fragment>
+      <button onClick={onToggle} style={{position:"fixed",right:20,bottom:20,zIndex:80,background:"#FF6D1F",color:"#fff",border:"none",borderRadius:999,padding:open?"12px 18px":"14px 20px",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 8px 24px rgba(255,109,31,0.4)",display:"flex",alignItems:"center",gap:8}}>
+        {open ? "✕ Close" : <>💬 Ask HUFT Fit</>}
+      </button>
+      {open && (
+        <div style={{position:"fixed",right:20,bottom:78,zIndex:79,width:"min(400px, calc(100vw - 40px))",maxHeight:"70vh",overflowY:"auto",background:"#F6F7FB",borderRadius:12,border:"1px solid #E6E9EF",boxShadow:"0 16px 48px rgba(50,51,56,0.28)",padding:14}}>
+          <AskTab all={all}/>
+        </div>
+      )}
     </React.Fragment>
   );
 }
@@ -1014,6 +1145,7 @@ function App({onLogout}){
   const [query,setQuery]=useState("");
   const [grp,setGrp]=useState("All");
   const [readyFilter,setReadyFilter]=useState("All");
+  const [askOpen,setAskOpen]=useState(false);
   const [regionFocus,setRegionFocus]=useState("all");
   const [regionTab,setRegionTab]=useState("n");
   const [saved,setSaved]=useState(()=>store.get(KEY_PRODUCTS,[]));
@@ -1072,7 +1204,7 @@ function App({onLogout}){
   }).sort((a,z)=>a.pct-z.pct),[saved,ALL]);
   const gaps=coverage.filter(c=>c.grade==="none"||c.grade==="partial");
 
-  const NAVITEMS=[["home","⌂","Home"],["fit","⚖","Fit checker"],["products","🏷","Products"],["catalog","📚","Full catalog"],["library","🐕","Breed library"],["regions","🗺","Regions"],["ask","💬","Ask HUFT Fit"],["coverage","📦","Line coverage"],["feedback","📝","Feedback"]];
+  const NAVITEMS=[["home","⌂","Home"],["fit","⚖","Fit checker"],["catalog","📚","HUFT Catalog"],["library","📖","Knowledge base"],["feedback","📝","Feedback"]];
   const card={background:"#fff",borderRadius:8,border:"1px solid #E6E9EF",padding:16,marginBottom:12};
 
   return (
@@ -1085,7 +1217,7 @@ function App({onLogout}){
         </div>
         <div className="navlist">
           {NAVITEMS.map(([k,ic,l])=>{
-            const badge = k==="coverage"?saved.length : k==="feedback"?feedback.length : 0;
+            const badge = k==="feedback"?feedback.length : 0;
             return (
             <button key={k} onClick={()=>setTab(k)} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 10px",borderRadius:6,border:"none",cursor:"pointer",fontSize:13.5,fontWeight:tab===k?600:500,fontFamily:"inherit",whiteSpace:"nowrap",textAlign:"left",background:tab===k?"#FEF1E5":"transparent",color:tab===k?"#BA4511":"#40434E",boxShadow:tab===k?"inset 3px 0 0 #FF6D1F":"none"}}>
               <span style={{fontSize:15,width:20,textAlign:"center"}}>{ic}</span>{l}
@@ -1124,7 +1256,7 @@ function App({onLogout}){
         {/* ===== HOME ===== */}
         {tab==="home" && <>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))",gap:10,marginBottom:12}}>
-            {[["fit","📏","Check a fit","Enter product dimensions, see which breeds it serves"],["library","🐕","Breed library","All measurements, care & behaviour data per breed"],["ask","💬","Ask HUFT Fit","Ask a question in plain words — the engine answers from the data"],["regions","🗺️","Regions","Zone-wise demand & assortment spans"]].map(([k,ic,t,d])=>(
+            {[["fit","📏","Check a fit","Enter product dimensions, see which breeds it serves"],["catalog","📚","HUFT Catalog","Browse all products, add new ones"],["library","📖","Knowledge base","All measurements, care & behaviour data per breed"]].map(([k,ic,t,d])=>(
               <button key={k} onClick={()=>setTab(k)} style={{textAlign:"left",background:"#fff",border:"1.5px solid #E6E9EF",borderRadius:8,padding:"16px 14px",cursor:"pointer",fontFamily:"inherit"}}>
                 <div style={{fontSize:26}}>{ic}</div>
                 <div style={{fontWeight:700,fontSize:14.5,color:"#323338",margin:"6px 0 3px"}}>{t}</div>
@@ -1168,10 +1300,6 @@ function App({onLogout}){
               <NumBox label="Webbing width (cm)" value={width} onChange={setWidth} min={0.5} max={8}/>
             </div>
             {!validDims && <p style={{color:"#E2445C",fontSize:13,margin:"10px 0 0"}}>Max must be greater than min for each dimension.</p>}
-            <div style={{display:"flex",gap:8,marginTop:14,alignItems:"center",flexWrap:"wrap"}}>
-              <button onClick={saveProduct} disabled={!validDims} style={{padding:"9px 18px",borderRadius:8,border:"none",cursor:validDims?"pointer":"not-allowed",background:validDims?"#FF6D1F":"#E6E9EF",color:"#fff",fontWeight:600,fontSize:13.5,fontFamily:"inherit"}}>Save to line coverage</button>
-              <span style={{fontSize:12,color:"#676879"}}>Saved in this browser — use Export in Line coverage to share.</span>
-            </div>
           </section>
 
           {validDims && <>
@@ -1240,102 +1368,8 @@ function App({onLogout}){
           {filteredBreeds.length===0 && <p style={{textAlign:"center",color:"#9699A6"}}>No breeds match — clear the search or pick another group.</p>}
         </>}
 
-        {/* ===== LINE COVERAGE ===== */}
-        {tab==="coverage" && <>
-          {saved.length===0 ? (
-            <section style={{...card,textAlign:"center",padding:36}}>
-              <div style={{fontSize:34}}>📏</div>
-              <h3 style={{margin:"8px 0 4px"}}>No products saved yet</h3>
-              <p style={{color:"#676879",fontSize:13.5,margin:0}}>Save product dimensions from the Fit checker to map which breeds your line covers — and where the gaps are.</p>
-            </section>
-          ) : <>
-            <section style={card}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
-                <h3 style={{margin:0,fontSize:15}}>Saved products ({saved.length})</h3>
-                <button onClick={()=>exportJSON(saved,"huft-fit-products.json")} style={{border:"1px solid #C3C6D4",background:"#fff",borderRadius:7,padding:"5px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:600,color:"#565A6E"}}>Export JSON</button>
-              </div>
-              {saved.map(p=>(
-                <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,padding:"8px 0",borderTop:"1px solid #EAECF2",marginTop:8}}>
-                  <div>
-                    <div style={{fontWeight:600,fontSize:13.5}}>{p.name} <span style={{fontWeight:400,color:"#9699A6",fontSize:12}}>· {p.type}</span></div>
-                    <div style={{...MONO,fontSize:11.5,color:"#676879"}}>neck {p.neck[0]}–{p.neck[1]}{p.chest?` · chest ${p.chest[0]}–${p.chest[1]}`:""} · {p.width} cm web</div>
-                  </div>
-                  <button onClick={()=>removeProduct(p.id)} style={{border:"1px solid #E6E9EF",background:"#fff",color:"#E2445C",borderRadius:7,padding:"5px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Remove</button>
-                </div>
-              ))}
-            </section>
-            {gaps.length>0 && (
-              <section style={{...card,borderLeft:"4px solid #FF6D1F"}}>
-                <h3 style={{margin:"0 0 6px",fontSize:15}}>Coverage gaps — {gaps.length} breed{gaps.length>1?"s":""}</h3>
-                <p style={{fontSize:12.5,color:"#676879",margin:"0 0 8px"}}>Breeds your current saved line does not fully serve, worst first:</p>
-                <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                  {gaps.map(g=>(<span key={g.breed.name} style={{fontSize:12,padding:"4px 10px",borderRadius:999,background:GRADE[g.grade].bg,color:GRADE[g.grade].color,fontWeight:600}}>{g.breed.name}{"★".repeat(Math.max(0,g.breed.pop-3))}</span>))}
-                </div>
-              </section>
-            )}
-            <section style={card}>
-              <h3 style={{margin:"0 0 8px",fontSize:15}}>Breed-by-breed coverage</h3>
-              {[...coverage].reverse().map(c=>(
-                <div key={c.breed.name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,padding:"7px 0",borderTop:"1px solid #EAECF2",fontSize:13}}>
-                  <span style={{fontWeight:600}}>{c.breed.name}</span>
-                  <span style={{display:"flex",gap:8,alignItems:"center"}}>
-                    {c.via && <span style={{fontSize:11.5,color:"#9699A6"}}>via {c.via}</span>}
-                    <span style={{fontSize:11.5,fontWeight:700,padding:"2px 9px",borderRadius:999,background:GRADE[c.grade].bg,color:GRADE[c.grade].color}}>{GRADE[c.grade].label}</span>
-                  </span>
-                </div>
-              ))}
-            </section>
-          </>}
-        </>}
-
-        {/* ===== REGIONS ===== */}
-        {tab==="regions" && (()=>{
-          const ranked=[...ALL].filter(b=>b.regions[regionTab]>0).sort((a,z)=>z.regions[regionTab]-a.regions[regionTab]||z.pop-a.pop);
-          const top=ranked.filter(b=>b.regions[regionTab]>=4);
-          const neckLo=Math.min(...top.map(b=>b.neck[0])), neckHi=Math.max(...top.map(b=>b.neck[1]));
-          const chestLo=Math.min(...top.map(b=>b.chest[0])), chestHi=Math.max(...top.map(b=>b.chest[1]));
-          const natives=ranked.filter(b=>b.group==="Native");
-          const lowHeat=ranked.filter(b=>b.regions[regionTab]>=3&&b.heat<=2);
-          return <>
-            <section style={card}>
-              <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:6}}>
-                {Object.values(REGIONS).map(r=>(
-                  <button key={r.key} onClick={()=>setRegionTab(r.key)} style={{padding:"7px 16px",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit",border:regionTab===r.key?"1.5px solid #323338":"1.5px solid #E6E9EF",background:regionTab===r.key?"#323338":"#fff",color:regionTab===r.key?"#F6C445":"#676879"}}>{r.label}</button>
-                ))}
-              </div>
-              <div style={{fontSize:13,color:"#40434E"}}><b>{REGIONS[regionTab].label} zone</b> · {REGIONS[regionTab].cities}</div>
-              <div style={{...MONO,display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))",gap:8,marginTop:10,fontSize:12.5}}>
-                <div style={{background:"#F5F6F8",borderRadius:8,padding:"8px 10px"}}><div style={{fontSize:10,color:"#9699A6",textTransform:"uppercase"}}>High-demand breeds (4–5★)</div><div style={{fontWeight:600,marginTop:2}}>{top.length}</div></div>
-                <div style={{background:"#F5F6F8",borderRadius:8,padding:"8px 10px"}}><div style={{fontSize:10,color:"#9699A6",textTransform:"uppercase"}}>Neck span to cover</div><div style={{fontWeight:600,marginTop:2}}>{neckLo}–{neckHi} cm</div></div>
-                <div style={{background:"#F5F6F8",borderRadius:8,padding:"8px 10px"}}><div style={{fontSize:10,color:"#9699A6",textTransform:"uppercase"}}>Chest span to cover</div><div style={{fontWeight:600,marginTop:2}}>{chestLo}–{chestHi} cm</div></div>
-              </div>
-              {lowHeat.length>0 && <p style={{fontSize:12.5,color:"#BA4511",background:"#FEF1E5",borderRadius:8,padding:"8px 10px",margin:"10px 0 0"}}>Heat-sensitive but in demand here: {lowHeat.map(b=>b.name).join(", ")} — assortment should include max-airflow mesh builds for these.</p>}
-              {natives.length>0 && <p style={{fontSize:12.5,color:"#565A6E",background:"#F0F1F6",borderRadius:8,padding:"8px 10px",margin:"8px 0 0"}}>Native breeds in this zone: {natives.map(b=>b.name).join(", ")} — mostly deep-chested/slip-risk; martingale and 3-strap SKUs matter here.</p>}
-            </section>
-            {ranked.map(b=>(
-              <div key={b.name} style={{...card,padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-                <div>
-                  <div style={{fontWeight:700,fontSize:14.5}}>{b.name} <span style={{fontWeight:400,fontSize:12,color:"#9699A6"}}>· {b.group}</span></div>
-                  <div style={{...MONO,fontSize:11.5,color:"#676879",marginTop:2}}>neck {b.neck[0]}–{b.neck[1]} <ConfBadge tier={b.conf.neck}/> · chest {b.chest[0]}–{b.chest[1]} <ConfBadge tier={b.conf.chest}/> · heat {b.heat}/5</div>
-                </div>
-                <div style={{textAlign:"right"}}>
-                  <div style={{color:"#B47500",fontSize:14,letterSpacing:1}}>{"★".repeat(b.regions[regionTab])}{"☆".repeat(5-b.regions[regionTab])}</div>
-                  <div style={{fontSize:10.5,color:"#9699A6"}}>{REGIONS[regionTab].label} demand</div>
-                </div>
-              </div>
-            ))}
-            <p style={{fontSize:12,color:"#9699A6"}}>Zone demand is indicative — compiled from India pet-market reports, the HUFT breed guide's city-level tips, and climate suitability. Swap in PawSuite/ERP category sales by store region for ground truth.</p>
-          </>;
-        })()}
-
-        {/* ===== PRODUCTS ===== */}
-        {tab==="products" && <ProductsTab skus={skus} all={ALL} onSave={persistSkus} onAsk={(name)=>{setTab("ask");setTimeout(()=>{window.__ASK_PREFILL__&&window.__ASK_PREFILL__(`Which breeds and sizes will the ${name} fit?`);},60);}}/>}
-
-        {/* ===== FULL CATALOG (Odoo export) ===== */}
-        {tab==="catalog" && <CatalogTab/>}
-
-        {/* ===== ASK ===== */}
-        {tab==="ask" && <AskTab all={ALL}/>}
+        {/* ===== HUFT CATALOG (Odoo export + curated fit-matched SKUs + team additions) ===== */}
+        {tab==="catalog" && <CatalogTab curatedSkus={skus} onAsk={(name)=>{setAskOpen(true);setTimeout(()=>{window.__ASK_PREFILL__&&window.__ASK_PREFILL__(`Which breeds and sizes will the ${name} fit?`);},60);}}/>}
 
         {/* ===== FEEDBACK LOG ===== */}
         {tab==="feedback" && <>
@@ -1344,7 +1378,7 @@ function App({onLogout}){
               <h3 style={{margin:0,fontSize:15}}>Team feedback on breed data ({feedback.length})</h3>
               {feedback.length>0 && <button onClick={()=>exportJSON(feedback,"huft-fit-feedback.json")} style={{border:"1px solid #C3C6D4",background:"#fff",borderRadius:7,padding:"5px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:600,color:"#565A6E"}}>Export JSON</button>}
             </div>
-            <p style={{fontSize:12.5,color:"#676879",margin:"6px 0 0"}}>Every rating submitted from the Breed library appears here. Export and share the JSON to consolidate team review — this is the pipeline for upgrading C-tier estimates to A-tier fit-lab data.</p>
+            <p style={{fontSize:12.5,color:"#676879",margin:"6px 0 0"}}>Every rating submitted from the Knowledge base appears here. Export and share the JSON to consolidate team review — this is the pipeline for upgrading C-tier estimates to A-tier fit-lab data.</p>
           </section>
           {feedback.length===0 ? (
             <section style={{...card,textAlign:"center",padding:36}}>
@@ -1368,6 +1402,7 @@ function App({onLogout}){
         </footer>
       </div>
       </div>
+      <AskWidget open={askOpen} onToggle={()=>setAskOpen(o=>!o)} all={ALL}/>
     </div>
   );
 }
