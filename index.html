@@ -272,12 +272,26 @@ function TapeBar({breedRange,prodRange,domain}){
   const [dLo,dHi]=domain, span=dHi-dLo, pct=v=>Math.max(0,Math.min(100,((v-dLo)/span)*100));
   const bLo=pct(breedRange[0]),bHi=pct(breedRange[1]),pLo=pct(prodRange[0]),pHi=pct(prodRange[1]);
   const oLo=Math.max(bLo,pLo),oHi=Math.min(bHi,pHi);
+  const hasOverlap=oHi>oLo;
   return (
-    <div style={{position:"relative",height:26,borderRadius:4,overflow:"hidden",background:"#F6C445",backgroundImage:"repeating-linear-gradient(90deg, rgba(50,51,56,0.55) 0 1px, transparent 1px 10%), repeating-linear-gradient(90deg, rgba(50,51,56,0.25) 0 1px, transparent 1px 2.5%)",border:"1px solid #32333822"}}>
-      <div style={{position:"absolute",top:0,bottom:0,left:bLo+"%",width:(bHi-bLo)+"%",background:"#32333814",borderLeft:"2px solid #323338",borderRight:"2px solid #323338"}}/>
-      <div style={{position:"absolute",top:6,bottom:6,left:pLo+"%",width:Math.max(0.5,pHi-pLo)+"%",background:"#FF6D1F",borderRadius:2,opacity:0.85}}/>
-      {oHi>oLo && <div style={{position:"absolute",top:6,bottom:6,left:oLo+"%",width:(oHi-oLo)+"%",background:"#00A25B",borderRadius:2}}/>}
-    </div>); }
+    <div>
+      <div style={{position:"relative",height:24,borderRadius:6,background:"#F0F1F6",border:"1px solid #E6E9EF"}}>
+        {/* tick marks every ~10% */}
+        <div style={{position:"absolute",inset:0,display:"flex"}}>
+          {Array.from({length:9}).map((_,i)=><div key={i} style={{flex:1,borderRight:i<8?"1px solid #E6E9EF":"none"}}/>)}
+        </div>
+        {/* breed range band */}
+        <div style={{position:"absolute",top:2,bottom:2,left:bLo+"%",width:Math.max(0.6,bHi-bLo)+"%",background:"#E6E9F5",border:"1.5px dashed #9699A6",borderRadius:4,boxSizing:"border-box"}}/>
+        {/* product range bar */}
+        <div style={{position:"absolute",top:7,bottom:7,left:pLo+"%",width:Math.max(0.8,pHi-pLo)+"%",background:"#FFC299",borderRadius:3}}/>
+        {/* overlap */}
+        {hasOverlap && <div style={{position:"absolute",top:7,bottom:7,left:oLo+"%",width:(oHi-oLo)+"%",background:"#00A25B",borderRadius:3}}/>}
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:"#9699A6",marginTop:2,fontFamily:"'IBM Plex Mono', ui-monospace, monospace"}}>
+        <span>{dLo} cm</span><span>{dHi} cm</span>
+      </div>
+    </div>
+  ); }
 function NumBox({label,value,onChange,min=10,max=130}){ return (
   <label style={{display:"flex",flexDirection:"column",gap:4,flex:1,minWidth:90}}>
     <span style={{fontSize:11,letterSpacing:"0.06em",textTransform:"uppercase",color:"#676879",fontWeight:600}}>{label}</span>
@@ -732,12 +746,9 @@ function CatalogTab({curatedSkus,onAsk}){
       {odoo.length===0 && <p style={{textAlign:"center",color:"#9699A6",fontSize:12.5}}>Odoo catalog data not loaded — check that products-catalog.js is present alongside index.html. Fit-matched and team-added products still show below.</p>}
       {filtered.slice(0,300).map((p,i)=>{
         const open=expanded===i;
-        const hasImg = p.image && /^https?:\/\//.test(p.image);
         return (
           <div key={p.name+i} style={{...card,display:"flex",gap:12,alignItems:"flex-start"}}>
-            {hasImg
-              ? <img src={p.image} alt="" style={{width:56,height:56,borderRadius:8,objectFit:"cover",flexShrink:0,background:"#F5F6F8"}}/>
-              : <div style={{width:56,height:56,borderRadius:8,background:"#F5F6F8",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>📦</div>}
+            <div style={{width:56,height:56,borderRadius:8,background:"#F5F6F8",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>📦</div>
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
                 <div style={{fontWeight:700,fontSize:14,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
@@ -1142,6 +1153,7 @@ function App({onLogout}){
   const [neckMin,setNeckMin]=useState(35),[neckMax,setNeckMax]=useState(50);
   const [chestMin,setChestMin]=useState(55),[chestMax,setChestMax]=useState(75);
   const [width,setWidth]=useState(2.5);
+  const [gradeFilter,setGradeFilter]=useState(null);
   const [query,setQuery]=useState("");
   const [grp,setGrp]=useState("All");
   const [readyFilter,setReadyFilter]=useState("All");
@@ -1303,14 +1315,22 @@ function App({onLogout}){
           </section>
 
           {validDims && <>
-            <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
-              {Object.entries(counts).map(([g,n])=>(
-                <div key={g} style={{...MONO,flex:1,minWidth:70,textAlign:"center",background:GRADE[g].bg,color:GRADE[g].color,borderRadius:10,padding:"10px 6px",border:`1px solid ${GRADE[g].color}33`}}>
+            <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap"}}>
+              {Object.entries(counts).map(([g,n])=>{
+                const active=gradeFilter===g;
+                return (
+                <button key={g} onClick={()=>setGradeFilter(active?null:g)} style={{...MONO,flex:1,minWidth:70,textAlign:"center",background:GRADE[g].bg,color:GRADE[g].color,borderRadius:10,padding:"10px 6px",border:active?`2px solid ${GRADE[g].color}`:`1px solid ${GRADE[g].color}33`,cursor:"pointer",fontFamily:"'IBM Plex Mono', ui-monospace, monospace",opacity:gradeFilter&&!active?0.55:1,transition:"opacity 0.15s"}}>
                   <div style={{fontSize:22,fontWeight:600}}>{n}</div><div style={{fontSize:11}}>{GRADE[g].label}</div>
-                </div>
-              ))}
+                </button>);
+              })}
             </div>
-            {results.map(({breed:b,nPct,cPct,grade,demand})=>{
+            {gradeFilter && <p style={{fontSize:12,color:"#676879",margin:"0 0 10px"}}>Showing <b style={{color:GRADE[gradeFilter].color}}>{GRADE[gradeFilter].label}</b> breeds only ({counts[gradeFilter]}) — <span style={{textDecoration:"underline",cursor:"pointer"}} onClick={()=>setGradeFilter(null)}>clear filter</span>.</p>}
+            <div style={{display:"flex",gap:14,alignItems:"center",flexWrap:"wrap",fontSize:11,color:"#676879",marginBottom:12}}>
+              <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:14,height:10,borderRadius:3,background:"#E6E9F5",border:"1.5px dashed #9699A6",display:"inline-block"}}/>Breed range</span>
+              <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:14,height:10,borderRadius:3,background:"#FFC299",display:"inline-block"}}/>Your product</span>
+              <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:14,height:10,borderRadius:3,background:"#00A25B",display:"inline-block"}}/>Overlap</span>
+            </div>
+            {results.filter(r=>!gradeFilter||r.grade===gradeFilter).map(({breed:b,nPct,cPct,grade,demand})=>{
               const worstConf = ptype==="harness" ? ([b.conf.neck,b.conf.chest].includes("C")?"C":[b.conf.neck,b.conf.chest].includes("B")?"B":"A") : b.conf.neck;
               return (
               <div key={b.name} style={{...card,padding:"13px 14px",opacity:grade==="none"?0.62:1}}>
