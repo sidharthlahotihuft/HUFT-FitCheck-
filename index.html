@@ -690,6 +690,11 @@ function curatedSkuToProduct(sk){
       dimension: sk.type==="apparel"
         ? (v.lengthMax>=999 ? `Body length ${v.lengthMin}+ cm` : `Body length ${v.lengthMin}–${v.lengthMax} cm`)
         : `Neck ${v.neckMin??"–"}–${v.neckMax??"–"} cm · Chest ${v.chestMin}–${v.chestMax} cm`,
+      // raw structured per-size measurements, so the Fit Checker can load a single
+      // size's dims instead of the whole product's flattened min/max aggregate.
+      raw: sk.type==="apparel"
+        ? {lengthMin:v.lengthMin, lengthMax:capLen(v.lengthMax)}
+        : {neckMin:v.neckMin, neckMax:v.neckMax, chestMin:sk.type==="harness"?v.chestMin:null, chestMax:sk.type==="harness"?v.chestMax:null},
     })),
   };
 }
@@ -698,18 +703,43 @@ function curatedSkuToProduct(sk){
    for the Fit Checker. Curated SKUs carry a precomputed `agg`; Odoo products are
    derived from each variant's parsed Dimension text (label-matched, so a
    Leash's "Length" is never mistaken for a Clothing item's body length). */
-function aggregateDims(product){
+// Dims for a single variant (one size) of a product — used both to build the
+// whole-product aggregate below and to let the Fit Checker load just one size.
+function dimsOfVariant(product, v){
+  if(!v) return {neck:null,chest:null,length:null};
+  if(v.raw){
+    const r=v.raw;
+    return {
+      neck: r.neckMin!=null ? [r.neckMin, r.neckMax] : null,
+      chest: r.chestMin!=null ? [r.chestMin, r.chestMax] : null,
+      length: r.lengthMin!=null ? [r.lengthMin, r.lengthMax] : null,
+    };
+  }
+  const neck=[], chest=[], length=[];
+  (v.dimParsed||[]).forEach(d=>{
+    const lbl=(d.label||"").toLowerCase();
+    const lo=d.value, hi=(d.valueMax!=null?d.valueMax:d.value);
+    if(lbl.includes("neck")){ neck.push(lo); neck.push(hi); }
+    else if(lbl.includes("girth")){ chest.push(lo); chest.push(hi); }
+    else if(lbl==="length" && product.category==="Clothing"){ length.push(lo); length.push(hi); }
+  });
+  return {
+    neck: neck.length?[Math.min(...neck),Math.max(...neck)]:null,
+    chest: chest.length?[Math.min(...chest),Math.max(...chest)]:null,
+    length: length.length?[Math.min(...length),Math.max(...length)]:null,
+  };
+}
+
+function aggregateDims(product, variant){
   if(!product) return {neck:null,chest:null,length:null};
+  if(variant) return dimsOfVariant(product, variant);
   if(product.agg) return product.agg;
   const neck=[], chest=[], length=[];
   (product.variants||[]).forEach(v=>{
-    (v.dimParsed||[]).forEach(d=>{
-      const lbl=(d.label||"").toLowerCase();
-      const lo=d.value, hi=(d.valueMax!=null?d.valueMax:d.value);
-      if(lbl.includes("neck")){ neck.push(lo); neck.push(hi); }
-      else if(lbl.includes("girth")){ chest.push(lo); chest.push(hi); }
-      else if(lbl==="length" && product.category==="Clothing"){ length.push(lo); length.push(hi); }
-    });
+    const d=dimsOfVariant(product,v);
+    if(d.neck){ neck.push(d.neck[0]); neck.push(d.neck[1]); }
+    if(d.chest){ chest.push(d.chest[0]); chest.push(d.chest[1]); }
+    if(d.length){ length.push(d.length[0]); length.push(d.length[1]); }
   });
   return {
     neck: neck.length?[Math.min(...neck),Math.max(...neck)]:null,
@@ -1185,6 +1215,7 @@ function App({onLogout}){
   const [fitCat,setFitCat]=useState("All");
   const [fitSub,setFitSub]=useState("All");
   const [fitProductName,setFitProductName]=useState("");
+  const [fitVariantSize,setFitVariantSize]=useState("");
   const [fitNote,setFitNote]=useState("");
   const [noDims,setNoDims]=useState(false);
   const [gradeFilter,setGradeFilter]=useState(null);
@@ -1218,28 +1249,44 @@ function App({onLogout}){
   const fitCatOptions = useMemo(()=>["All",...Array.from(new Set(fullCatalog.map(p=>p.category))).sort()],[fullCatalog]);
   const fitSubOptions = useMemo(()=>["All",...Array.from(new Set(fullCatalog.filter(p=>fitCat==="All"||p.category===fitCat).map(p=>p.subCategory))).sort()],[fullCatalog,fitCat]);
   const fitProductOptions = useMemo(()=>fullCatalog.filter(p=>(fitCat==="All"||p.category===fitCat)&&(fitSub==="All"||p.subCategory===fitSub)),[fullCatalog,fitCat,fitSub]);
-  const applyProduct=(name)=>{
-    setFitProductName(name);
-    if(!name){ setFitNote(""); setNoDims(false); return; }
-    const p=fullCatalog.find(x=>x.name===name);
-    if(!p){ setFitNote(""); setNoDims(false); return; }
-    const agg=aggregateDims(p);
+  const applyDimsFromAgg=(agg,label,name)=>{
     if(agg.length){
       setNoDims(false);
       setPtype("apparel"); setLengthMin(agg.length[0]); setLengthMax(agg.length[1]);
-      setFitNote(`Loaded body-length range ${agg.length[0]}–${agg.length[1]} cm across ${p.variants.length} size${p.variants.length>1?"s":""} of "${name}".`);
+      setFitNote(`Loaded body-length range ${agg.length[0]}–${agg.length[1]} cm ${label}.`);
     } else if(agg.chest){
       setNoDims(false);
       setPtype("harness"); if(agg.neck){setNeckMin(agg.neck[0]);setNeckMax(agg.neck[1]);} setChestMin(agg.chest[0]); setChestMax(agg.chest[1]);
-      setFitNote(`Loaded neck & chest range across ${p.variants.length} size${p.variants.length>1?"s":""} of "${name}".`);
+      setFitNote(`Loaded neck & chest range ${label}.`);
     } else if(agg.neck){
       setNoDims(false);
       setPtype("collar"); setNeckMin(agg.neck[0]); setNeckMax(agg.neck[1]);
-      setFitNote(`Loaded neck range across ${p.variants.length} size${p.variants.length>1?"s":""} of "${name}".`);
+      setFitNote(`Loaded neck range ${label}.`);
     } else {
       setNoDims(true);
       setFitNote(`"${name}" doesn't have structured neck/chest/length measurements to auto-fill — showing No fit for all breeds until you enter dimensions manually below.`);
     }
+  };
+  const applyProduct=(name)=>{
+    setFitProductName(name);
+    setFitVariantSize("");
+    if(!name){ setFitNote(""); setNoDims(false); return; }
+    const p=fullCatalog.find(x=>x.name===name);
+    if(!p){ setFitNote(""); setNoDims(false); return; }
+    const label=`across ${p.variants.length} size${p.variants.length>1?"s":""} of "${name}"`;
+    applyDimsFromAgg(aggregateDims(p), label, name);
+  };
+  const applySize=(sizeLabel)=>{
+    setFitVariantSize(sizeLabel);
+    const p=fullCatalog.find(x=>x.name===fitProductName);
+    if(!p) return;
+    if(!sizeLabel){
+      applyDimsFromAgg(aggregateDims(p), `across ${p.variants.length} size${p.variants.length>1?"s":""} of "${fitProductName}"`, fitProductName);
+      return;
+    }
+    const v=p.variants.find(x=>x.size===sizeLabel);
+    if(!v) return;
+    applyDimsFromAgg(aggregateDims(p,v), `for size ${sizeLabel} of "${fitProductName}"`, fitProductName);
   };
   const manualEdit=(setter)=>(v)=>{ setter(v); setNoDims(false); };
 
@@ -1376,7 +1423,36 @@ function App({onLogout}){
                 <option value="">— Manual entry (no product selected) —</option>
                 {fitProductOptions.slice(0,500).map(p=><option key={p.name} value={p.name}>{p.name}</option>)}
               </select>
+              {fitProductName && (()=>{
+                const p=fullCatalog.find(x=>x.name===fitProductName);
+                const sizes=p?p.variants.map(v=>v.size):[];
+                if(!p || sizes.length<2) return null;
+                return (
+                  <select value={fitVariantSize} onChange={e=>applySize(e.target.value)} style={{padding:"9px 10px",borderRadius:8,border:"1.5px solid #C3C6D4",fontSize:13,fontFamily:"inherit",background:"#fff"}}>
+                    <option value="">All sizes (combined range)</option>
+                    {sizes.map(s=><option key={s} value={s}>{s}</option>)}
+                  </select>
+                );
+              })()}
             </div>
+            {fitProductName && (()=>{
+              const p=fullCatalog.find(x=>x.name===fitProductName);
+              if(!p || p.variants.length<2) return null;
+              return (
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",margin:"0 0 10px"}}>
+                  {p.variants.map(v=>(
+                    <button key={v.size} onClick={()=>applySize(v.size===fitVariantSize?"":v.size)}
+                      style={{padding:"4px 9px",borderRadius:999,fontSize:11.5,fontFamily:"inherit",cursor:"pointer",
+                        border:v.size===fitVariantSize?"1.5px solid #0073EA":"1.5px solid #DCDFEA",
+                        background:v.size===fitVariantSize?"#EAF1FF":"#fff",
+                        color:v.size===fitVariantSize?"#0073EA":"#565A6E"}}
+                      title={v.dimension||""}>
+                      {v.size}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
             {fitNote && <p style={{fontSize:12,color:"#565A6E",background:"#F0F1F6",borderRadius:7,padding:"7px 10px",margin:"0 0 14px"}}>{fitNote}</p>}
             <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
               {ptype==="apparel" ? <>
