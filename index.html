@@ -1249,19 +1249,23 @@ function App({onLogout}){
   const fitCatOptions = useMemo(()=>["All",...Array.from(new Set(fullCatalog.map(p=>p.category))).sort()],[fullCatalog]);
   const fitSubOptions = useMemo(()=>["All",...Array.from(new Set(fullCatalog.filter(p=>fitCat==="All"||p.category===fitCat).map(p=>p.subCategory))).sort()],[fullCatalog,fitCat]);
   const fitProductOptions = useMemo(()=>fullCatalog.filter(p=>(fitCat==="All"||p.category===fitCat)&&(fitSub==="All"||p.subCategory===fitSub)),[fullCatalog,fitCat,fitSub]);
+  // A single catalog size gives one fixed measurement (min===max) — show it as
+  // a plain value ("29 cm"), not a zero-width "range" ("29–29 cm").
+  const fmtDim=(r)=> r[0]===r[1] ? `${r[0]} cm` : `${r[0]}–${r[1]} cm`;
   const applyDimsFromAgg=(agg,label,name)=>{
     if(agg.length){
       setNoDims(false);
       setPtype("apparel"); setLengthMin(agg.length[0]); setLengthMax(agg.length[1]);
-      setFitNote(`Loaded body-length range ${agg.length[0]}–${agg.length[1]} cm ${label}.`);
+      setFitNote(`Loaded body length ${fmtDim(agg.length)} ${label}.`);
     } else if(agg.chest){
       setNoDims(false);
       setPtype("harness"); if(agg.neck){setNeckMin(agg.neck[0]);setNeckMax(agg.neck[1]);} setChestMin(agg.chest[0]); setChestMax(agg.chest[1]);
-      setFitNote(`Loaded neck & chest range ${label}.`);
+      const parts=[agg.neck?`neck ${fmtDim(agg.neck)}`:null,`chest ${fmtDim(agg.chest)}`].filter(Boolean).join(" & ");
+      setFitNote(`Loaded ${parts} ${label}.`);
     } else if(agg.neck){
       setNoDims(false);
       setPtype("collar"); setNeckMin(agg.neck[0]); setNeckMax(agg.neck[1]);
-      setFitNote(`Loaded neck range ${label}.`);
+      setFitNote(`Loaded neck ${fmtDim(agg.neck)} ${label}.`);
     } else {
       setNoDims(true);
       setFitNote(`"${name}" doesn't have structured neck/chest/length measurements to auto-fill — showing No fit for all breeds until you enter dimensions manually below.`);
