@@ -665,6 +665,14 @@ function answerQuestion(q, all){
 const KEY_CUSTOM_PRODUCTS = "huft_fit_custom_products";
 
 function curatedSkuToProduct(sk){
+  // 999 is our "open-ended" sentinel for the top apparel size (82 cm+) — cap it
+  // to a realistic ceiling for aggregation/display instead of letting it stand as 999.
+  const capLen = m => m>=999 ? 95 : m;
+  const agg = sk.type==="apparel"
+    ? { neck:null, chest:null, length:[Math.min(...sk.variants.map(v=>v.lengthMin)), Math.max(...sk.variants.map(v=>capLen(v.lengthMax)))] }
+    : { neck:[Math.min(...sk.variants.map(v=>v.neckMin)), Math.max(...sk.variants.map(v=>v.neckMax))],
+        chest: sk.type==="harness" ? [Math.min(...sk.variants.map(v=>v.chestMin)), Math.max(...sk.variants.map(v=>v.chestMax))] : null,
+        length:null };
   return {
     name: sk.name,
     category: sk.type==="apparel" ? "Clothing" : "Collars, Leashes & Harnesses",
@@ -675,6 +683,7 @@ function curatedSkuToProduct(sk){
     image: null,
     url: sk.url,
     fitMatched: true,
+    agg,
     variants: sk.variants.map(v=>({
       size: v.size,
       sku: sk.id+"-"+v.size,
@@ -685,15 +694,34 @@ function curatedSkuToProduct(sk){
   };
 }
 
-function CatalogTab({curatedSkus,onAsk}){
-  const [customProducts,setCustomProducts]=useState(()=>store.get(KEY_CUSTOM_PRODUCTS,[]));
-  const [showAdd,setShowAdd]=useState(false);
-  const odoo = (typeof PRODUCT_CATALOG !== "undefined") ? PRODUCT_CATALOG : [];
-  const curated = useMemo(()=>(curatedSkus||[]).map(curatedSkuToProduct),[curatedSkus]);
-  const catalog = useMemo(()=>[...curated,...odoo,...customProducts],[curated,odoo,customProducts]);
+/* Aggregate a catalog product's variants into overall neck/chest/length ranges
+   for the Fit Checker. Curated SKUs carry a precomputed `agg`; Odoo products are
+   derived from each variant's parsed Dimension text (label-matched, so a
+   Leash's "Length" is never mistaken for a Clothing item's body length). */
+function aggregateDims(product){
+  if(!product) return {neck:null,chest:null,length:null};
+  if(product.agg) return product.agg;
+  const neck=[], chest=[], length=[];
+  (product.variants||[]).forEach(v=>{
+    (v.dimParsed||[]).forEach(d=>{
+      const lbl=(d.label||"").toLowerCase();
+      const lo=d.value, hi=(d.valueMax!=null?d.valueMax:d.value);
+      if(lbl.includes("neck")){ neck.push(lo); neck.push(hi); }
+      else if(lbl.includes("girth")){ chest.push(lo); chest.push(hi); }
+      else if(lbl==="length" && product.category==="Clothing"){ length.push(lo); length.push(hi); }
+    });
+  });
+  return {
+    neck: neck.length?[Math.min(...neck),Math.max(...neck)]:null,
+    chest: chest.length?[Math.min(...chest),Math.max(...chest)]:null,
+    length: length.length?[Math.min(...length),Math.max(...length)]:null,
+  };
+}
 
-  const addProduct=(p)=>{ const l=[...customProducts,p]; setCustomProducts(l); store.set(KEY_CUSTOM_PRODUCTS,l); setShowAdd(false); };
-  const removeProduct=(name)=>{ if(!window.confirm(`Remove "${name}"?`)) return; const l=customProducts.filter(p=>p.name!==name); setCustomProducts(l); store.set(KEY_CUSTOM_PRODUCTS,l); };
+function CatalogTab({catalog,customCount,odooCount,curatedCount,onAddProduct,onRemoveProduct,onAsk}){
+  const [showAdd,setShowAdd]=useState(false);
+  const addProduct=(p)=>{ onAddProduct(p); setShowAdd(false); };
+  const removeProduct=(name)=>{ if(!window.confirm(`Remove "${name}"?`)) return; onRemoveProduct(name); };
 
   const [q,setQ]=useState("");
   const [cat,setCat]=useState("All");
@@ -724,7 +752,7 @@ function CatalogTab({curatedSkus,onAsk}){
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap",marginBottom:10}}>
           <div>
             <h3 style={{margin:0,fontSize:15}}>HUFT Catalog</h3>
-            <p style={{fontSize:12.5,color:"#676879",margin:"4px 0 0"}}>{catalog.length.toLocaleString()} products · {totalSkus.toLocaleString()} SKUs — {odoo.length.toLocaleString()} from the Odoo export, {curated.length} fit-matched, {customProducts.length} team-added.</p>
+            <p style={{fontSize:12.5,color:"#676879",margin:"4px 0 0"}}>{catalog.length.toLocaleString()} products · {totalSkus.toLocaleString()} SKUs — {odooCount.toLocaleString()} from the Odoo export, {curatedCount} fit-matched, {customCount} team-added.</p>
           </div>
           <button onClick={()=>setShowAdd(true)} style={{background:"#FF6D1F",color:"#fff",border:"none",borderRadius:8,padding:"9px 18px",fontWeight:600,fontSize:13.5,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>+ Add product</button>
         </div>
@@ -743,7 +771,7 @@ function CatalogTab({curatedSkus,onAsk}){
           <span style={{fontSize:12,color:"#9699A6"}}>{filtered.length.toLocaleString()} match{filtered.length===1?"":"es"}</span>
         </div>
       </section>
-      {odoo.length===0 && <p style={{textAlign:"center",color:"#9699A6",fontSize:12.5}}>Odoo catalog data not loaded — check that products-catalog.js is present alongside index.html. Fit-matched and team-added products still show below.</p>}
+      {odooCount===0 && <p style={{textAlign:"center",color:"#9699A6",fontSize:12.5}}>Odoo catalog data not loaded — check that products-catalog.js is present alongside index.html. Fit-matched and team-added products still show below.</p>}
       {filtered.slice(0,300).map((p,i)=>{
         const open=expanded===i;
         return (
@@ -1152,7 +1180,12 @@ function App({onLogout}){
   const [pname,setPname]=useState("");
   const [neckMin,setNeckMin]=useState(35),[neckMax,setNeckMax]=useState(50);
   const [chestMin,setChestMin]=useState(55),[chestMax,setChestMax]=useState(75);
+  const [lengthMin,setLengthMin]=useState(33),[lengthMax,setLengthMax]=useState(39);
   const [width,setWidth]=useState(2.5);
+  const [fitCat,setFitCat]=useState("All");
+  const [fitSub,setFitSub]=useState("All");
+  const [fitProductName,setFitProductName]=useState("");
+  const [fitNote,setFitNote]=useState("");
   const [gradeFilter,setGradeFilter]=useState(null);
   const [query,setQuery]=useState("");
   const [grp,setGrp]=useState("All");
@@ -1166,6 +1199,12 @@ function App({onLogout}){
   const [skus,setSkus]=useState(()=>{ const saved=store.get(KEY_SKUS,null); return saved&&saved.length?saved:SEED_SKUS; });
   useEffect(()=>{ window.__HUFT_SKUS__=skus; },[skus]);
   const persistSkus=l=>{setSkus(l); store.set(KEY_SKUS,l);};
+  const [customProducts,setCustomProducts]=useState(()=>store.get(KEY_CUSTOM_PRODUCTS,[]));
+  const addCustomProduct=p=>{const l=[...customProducts,p]; setCustomProducts(l); store.set(KEY_CUSTOM_PRODUCTS,l);};
+  const removeCustomProduct=name=>{const l=customProducts.filter(p=>p.name!==name); setCustomProducts(l); store.set(KEY_CUSTOM_PRODUCTS,l);};
+  const curatedProducts=useMemo(()=>skus.map(curatedSkuToProduct),[skus]);
+  const odooProducts=(typeof PRODUCT_CATALOG!=="undefined")?PRODUCT_CATALOG:[];
+  const fullCatalog=useMemo(()=>[...curatedProducts,...odooProducts,...customProducts],[curatedProducts,customProducts]);
   const [showAddBreed,setShowAddBreed]=useState(false);
   const ALL=useMemo(()=>[...BREEDS,...customBreeds],[customBreeds]);
   const [toast,setToast]=useState("");
@@ -1176,18 +1215,48 @@ function App({onLogout}){
   const addCustomBreed=b=>{const l=[...customBreeds,b]; setCustomBreeds(l); if(store.set(KEY_CUSTOM,l)) say(`"${b.name}" added to database`); else say("Storage unavailable — export before closing"); setShowAddBreed(false);};
   const removeCustomBreed=name=>{ if(!window.confirm(`Remove custom breed "${name}"? This cannot be undone.`)) return; const l=customBreeds.filter(b=>b.name!==name); setCustomBreeds(l); store.set(KEY_CUSTOM,l); say(`Removed "${name}"`);};
 
-  const validDims = ptype==="collar" ? (neckMin!==""&&neckMax!==""&&neckMax>neckMin)
+  const fitCatOptions = useMemo(()=>["All",...Array.from(new Set(fullCatalog.map(p=>p.category))).sort()],[fullCatalog]);
+  const fitSubOptions = useMemo(()=>["All",...Array.from(new Set(fullCatalog.filter(p=>fitCat==="All"||p.category===fitCat).map(p=>p.subCategory))).sort()],[fullCatalog,fitCat]);
+  const fitProductOptions = useMemo(()=>fullCatalog.filter(p=>(fitCat==="All"||p.category===fitCat)&&(fitSub==="All"||p.subCategory===fitSub)),[fullCatalog,fitCat,fitSub]);
+  const applyProduct=(name)=>{
+    setFitProductName(name);
+    if(!name){ setFitNote(""); return; }
+    const p=fullCatalog.find(x=>x.name===name);
+    if(!p){ setFitNote(""); return; }
+    const agg=aggregateDims(p);
+    if(agg.length){
+      setPtype("apparel"); setLengthMin(agg.length[0]); setLengthMax(agg.length[1]);
+      setFitNote(`Loaded body-length range ${agg.length[0]}–${agg.length[1]} cm across ${p.variants.length} size${p.variants.length>1?"s":""} of "${name}".`);
+    } else if(agg.chest){
+      setPtype("harness"); if(agg.neck){setNeckMin(agg.neck[0]);setNeckMax(agg.neck[1]);} setChestMin(agg.chest[0]); setChestMax(agg.chest[1]);
+      setFitNote(`Loaded neck & chest range across ${p.variants.length} size${p.variants.length>1?"s":""} of "${name}".`);
+    } else if(agg.neck){
+      setPtype("collar"); setNeckMin(agg.neck[0]); setNeckMax(agg.neck[1]);
+      setFitNote(`Loaded neck range across ${p.variants.length} size${p.variants.length>1?"s":""} of "${name}".`);
+    } else {
+      setFitNote(`"${name}" doesn't have structured neck/chest/length measurements to auto-fill — enter dimensions manually below.`);
+    }
+  };
+
+  const validDims = ptype==="apparel" ? (lengthMin!==""&&lengthMax!==""&&lengthMax>lengthMin)
+    : ptype==="collar" ? (neckMin!==""&&neckMax!==""&&neckMax>neckMin)
     : (neckMin!==""&&neckMax!==""&&chestMin!==""&&chestMax!==""&&neckMax>neckMin&&chestMax>chestMin);
 
   const results=useMemo(()=>{ if(!validDims) return [];
     const pool = regionFocus==="all" ? ALL : ALL.filter(b=>b.regions[regionFocus]>0);
     const demand = b => regionFocus==="all" ? b.pop : b.regions[regionFocus];
+    if(ptype==="apparel"){
+      return pool.map(b=>{ const bodyLen=(b.care&&b.care.bodyLen)||b.height;
+        const lPct=overlapPct(bodyLen,[lengthMin,lengthMax]);
+        return {breed:b,nPct:lPct,cPct:1,combined:lPct,grade:gradeOf(lPct),demand:demand(b)};
+      }).sort((a,z)=>z.combined-a.combined||z.demand-a.demand);
+    }
     return pool.map(b=>{ const nPct=overlapPct(b.neck,[neckMin,neckMax]);
       const cPct=ptype==="harness"?overlapPct(b.chest,[chestMin,chestMax]):1;
       const combined=ptype==="harness"?Math.min(nPct,cPct):nPct;
       return {breed:b,nPct,cPct,combined,grade:gradeOf(combined),demand:demand(b)};
     }).sort((a,z)=>z.combined-a.combined||z.demand-a.demand);
-  },[ptype,neckMin,neckMax,chestMin,chestMax,validDims,regionFocus]);
+  },[ptype,neckMin,neckMax,chestMin,chestMax,lengthMin,lengthMax,validDims,regionFocus]);
 
   const counts=useMemo(()=>{const c={full:0,good:0,partial:0,none:0};results.forEach(r=>c[r.grade]++);return c;},[results]);
 
@@ -1291,11 +1360,25 @@ function App({onLogout}){
         {/* ===== FIT CHECKER ===== */}
         {tab==="fit" && <>
           <section style={card}>
+            <h3 style={{margin:"0 0 4px",fontSize:14.5}}>Pick a product from the catalog</h3>
+            <p style={{fontSize:12,color:"#676879",margin:"0 0 10px"}}>Choose a category, sub-category and product — dimensions load automatically from {fullCatalog.length.toLocaleString()} products in the HUFT Catalog. Or leave it on manual entry and type dimensions directly below.</p>
+            <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+              <select value={fitCat} onChange={e=>{setFitCat(e.target.value);setFitSub("All");setFitProductName("");setFitNote("");}} style={{padding:"9px 10px",borderRadius:8,border:"1.5px solid #C3C6D4",fontSize:13,fontFamily:"inherit",background:"#fff"}}>
+                {fitCatOptions.map(c=><option key={c} value={c}>{c==="All"?"All categories":c}</option>)}
+              </select>
+              <select value={fitSub} onChange={e=>{setFitSub(e.target.value);setFitProductName("");setFitNote("");}} style={{padding:"9px 10px",borderRadius:8,border:"1.5px solid #C3C6D4",fontSize:13,fontFamily:"inherit",background:"#fff"}}>
+                {fitSubOptions.map(s=><option key={s} value={s}>{s==="All"?"All sub-categories":s}</option>)}
+              </select>
+              <select value={fitProductName} onChange={e=>applyProduct(e.target.value)} style={{flex:1,minWidth:200,padding:"9px 10px",borderRadius:8,border:"1.5px solid #C3C6D4",fontSize:13,fontFamily:"inherit",background:"#fff"}}>
+                <option value="">— Manual entry (no product selected) —</option>
+                {fitProductOptions.slice(0,500).map(p=><option key={p.name} value={p.name}>{p.name}</option>)}
+              </select>
+            </div>
+            {fitNote && <p style={{fontSize:12,color:"#565A6E",background:"#F0F1F6",borderRadius:7,padding:"7px 10px",margin:"0 0 10px"}}>{fitNote}</p>}
             <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
-              {["harness","collar"].map(t=>(
-                <button key={t} onClick={()=>setPtype(t)} style={{padding:"8px 18px",borderRadius:8,cursor:"pointer",fontWeight:600,fontSize:14,fontFamily:"inherit",border:ptype===t?"1.5px solid #323338":"1.5px solid #C3C6D4",background:ptype===t?"#323338":"#fff",color:ptype===t?"#F6C445":"#676879"}}>{t==="harness"?"Harness":"Collar"}</button>
+              {["harness","collar","apparel"].map(t=>(
+                <button key={t} onClick={()=>setPtype(t)} style={{padding:"8px 18px",borderRadius:8,cursor:"pointer",fontWeight:600,fontSize:14,fontFamily:"inherit",border:ptype===t?"1.5px solid #323338":"1.5px solid #C3C6D4",background:ptype===t?"#323338":"#fff",color:ptype===t?"#F6C445":"#676879"}}>{t==="harness"?"Harness":t==="collar"?"Collar":"Apparel"}</button>
               ))}
-              <input placeholder="Product name / SKU (optional)" value={pname} onChange={e=>setPname(e.target.value)} style={{flex:1,minWidth:160,padding:"9px 10px",borderRadius:8,border:"1.5px solid #C3C6D4",fontSize:13.5,fontFamily:"inherit"}}/>
               <select value={regionFocus} onChange={e=>setRegionFocus(e.target.value)} title="Rank results by regional demand" style={{padding:"9px 10px",borderRadius:8,border:"1.5px solid #C3C6D4",fontSize:13,fontFamily:"inherit",background:"#fff",color:regionFocus==="all"?"#676879":"#323338",fontWeight:600}}>
                 <option value="all">All India</option>
                 {Object.values(REGIONS).map(r=><option key={r.key} value={r.key}>{r.label} zone</option>)}
@@ -1303,13 +1386,18 @@ function App({onLogout}){
             </div>
             {regionFocus!=="all" && <p style={{fontSize:12,color:"#676879",margin:"0 0 10px"}}>Ranking by demand in <b>{REGIONS[regionFocus].label}</b> ({REGIONS[regionFocus].cities}); breeds with zero regional presence hidden.</p>}
             <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-              <NumBox label="Neck min (cm)" value={neckMin} onChange={setNeckMin}/>
-              <NumBox label="Neck max (cm)" value={neckMax} onChange={setNeckMax}/>
-              {ptype==="harness" && <>
-                <NumBox label="Chest min (cm)" value={chestMin} onChange={setChestMin}/>
-                <NumBox label="Chest max (cm)" value={chestMax} onChange={setChestMax}/>
+              {ptype==="apparel" ? <>
+                <NumBox label="Body length min (cm)" value={lengthMin} onChange={setLengthMin}/>
+                <NumBox label="Body length max (cm)" value={lengthMax} onChange={setLengthMax}/>
+              </> : <>
+                <NumBox label="Neck min (cm)" value={neckMin} onChange={setNeckMin}/>
+                <NumBox label="Neck max (cm)" value={neckMax} onChange={setNeckMax}/>
+                {ptype==="harness" && <>
+                  <NumBox label="Chest min (cm)" value={chestMin} onChange={setChestMin}/>
+                  <NumBox label="Chest max (cm)" value={chestMax} onChange={setChestMax}/>
+                </>}
+                <NumBox label="Webbing width (cm)" value={width} onChange={setWidth} min={0.5} max={8}/>
               </>}
-              <NumBox label="Webbing width (cm)" value={width} onChange={setWidth} min={0.5} max={8}/>
             </div>
             {!validDims && <p style={{color:"#E2445C",fontSize:13,margin:"10px 0 0"}}>Max must be greater than min for each dimension.</p>}
           </section>
@@ -1331,7 +1419,8 @@ function App({onLogout}){
               <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:14,height:10,borderRadius:3,background:"#00A25B",display:"inline-block"}}/>Overlap</span>
             </div>
             {results.filter(r=>!gradeFilter||r.grade===gradeFilter).map(({breed:b,nPct,cPct,grade,demand})=>{
-              const worstConf = ptype==="harness" ? ([b.conf.neck,b.conf.chest].includes("C")?"C":[b.conf.neck,b.conf.chest].includes("B")?"B":"A") : b.conf.neck;
+              const worstConf = ptype==="apparel" ? "B" : ptype==="harness" ? ([b.conf.neck,b.conf.chest].includes("C")?"C":[b.conf.neck,b.conf.chest].includes("B")?"B":"A") : b.conf.neck;
+              const bodyLen=(b.care&&b.care.bodyLen)||b.height;
               return (
               <div key={b.name} style={{...card,padding:"13px 14px",opacity:grade==="none"?0.62:1}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
@@ -1339,6 +1428,12 @@ function App({onLogout}){
                   <span style={{fontSize:12,fontWeight:700,padding:"3px 10px",borderRadius:999,background:GRADE[grade].bg,color:GRADE[grade].color}}>{GRADE[grade].label}</span>
                 </div>
                 <div style={{marginTop:10,display:"grid",gap:8}}>
+                  {ptype==="apparel" ? (
+                    <div>
+                      <div style={{...MONO,fontSize:11,color:"#676879",marginBottom:3,display:"flex",justifyContent:"space-between"}}><span>BODY LENGTH · breed {bodyLen[0]}–{bodyLen[1]} cm <span title="Estimated from height/build" style={{cursor:"help"}}>est.</span></span><span>{Math.round(nPct*100)}% covered</span></div>
+                      <TapeBar breedRange={bodyLen} prodRange={[lengthMin,lengthMax]} domain={[15,100]}/>
+                    </div>
+                  ) : <>
                   <div>
                     <div style={{...MONO,fontSize:11,color:"#676879",marginBottom:3,display:"flex",justifyContent:"space-between"}}><span>NECK · breed {b.neck[0]}–{b.neck[1]} cm <ConfBadge tier={b.conf.neck}/></span><span>{Math.round(nPct*100)}% covered</span></div>
                     <TapeBar breedRange={b.neck} prodRange={[neckMin,neckMax]} domain={[15,90]}/>
@@ -1349,13 +1444,14 @@ function App({onLogout}){
                       <TapeBar breedRange={b.chest} prodRange={[chestMin,chestMax]} domain={[25,115]}/>
                     </div>
                   )}
+                  </>}
                 </div>
                 {grade!=="none" && (
                   <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:9,alignItems:"center"}}>
                     <Chip text={`Pull ${b.beh.pull}/5`} tip={pullHardware(b.beh.pull)} tone={b.beh.pull>=4?"warn":"info"}/>
                     <Chip text={`Escape ${b.beh.escape}/5`} tip={b.beh.clip} tone={b.beh.escape>=4?"warn":"info"}/>
                     {b.flags.map(f=><Chip key={f} text={FLAG_LABELS[f].label} tip={FLAG_LABELS[f].tip} tone="warn"/>)}
-                    <Chip text={widthAdvice(b.neck[1])} tone="info"/>
+                    {ptype!=="apparel" && <Chip text={widthAdvice(b.neck[1])} tone="info"/>}
                     {ptype==="collar" && b.flags.includes("brachy") && <Chip text="⚠ Recommend harness for walking" tone="warn"/>}
                     {ptype==="collar" && b.flags.includes("slipRisk") && <Chip text="⚠ Martingale advised" tone="warn"/>}
                   </div>
@@ -1389,7 +1485,9 @@ function App({onLogout}){
         </>}
 
         {/* ===== HUFT CATALOG (Odoo export + curated fit-matched SKUs + team additions) ===== */}
-        {tab==="catalog" && <CatalogTab curatedSkus={skus} onAsk={(name)=>{setAskOpen(true);setTimeout(()=>{window.__ASK_PREFILL__&&window.__ASK_PREFILL__(`Which breeds and sizes will the ${name} fit?`);},60);}}/>}
+        {tab==="catalog" && <CatalogTab catalog={fullCatalog} odooCount={odooProducts.length} curatedCount={curatedProducts.length} customCount={customProducts.length}
+          onAddProduct={addCustomProduct} onRemoveProduct={removeCustomProduct}
+          onAsk={(name)=>{setAskOpen(true);setTimeout(()=>{window.__ASK_PREFILL__&&window.__ASK_PREFILL__(`Which breeds and sizes will the ${name} fit?`);},60);}}/>}
 
         {/* ===== FEEDBACK LOG ===== */}
         {tab==="feedback" && <>
