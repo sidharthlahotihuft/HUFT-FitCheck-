@@ -206,6 +206,11 @@ const SEED_SKUS = [
     ] },
 ];
 
+/* ---------- sales verification + size recommendations (from Odoo sales analysis) ---------- */
+const SALES = {"Golden Retriever":{"n":36793,"ret":5.5,"v":"confirmed","ok":true,"sure":"Very high"},"German Shepherd":{"n":7062,"ret":5.0,"v":"corrected","ok":true,"sure":"Very high"},"Siberian Husky":{"n":4220,"ret":4.1,"v":"corrected","ok":true,"sure":"Very high"},"Shih Tzu":{"n":42613,"ret":5.4,"v":"confirmed","ok":true,"sure":"High"},"Beagle":{"n":15047,"ret":5.9,"v":"confirmed","ok":true,"sure":"High"},"Maltese":{"n":5409,"ret":3.8,"v":"confirmed","ok":true,"sure":"High"},"Cocker Spaniel":{"n":5095,"ret":5.7,"v":"confirmed","ok":true,"sure":"High"},"Lhasa Apso":{"n":2800,"ret":4.9,"v":"confirmed","ok":true,"sure":"High"},"Rajapalayam":{"n":33,"ret":0.0,"v":"none","ok":false,"sure":"High"},"Chippiparai":{"n":3,"ret":0.0,"v":"none","ok":false,"sure":"High"},"Mudhol / Caravan Hound":{"n":0,"ret":null,"v":"none","ok":false,"sure":"High"},"Kanni":{"n":0,"ret":null,"v":"none","ok":false,"sure":"High"},"Kombai":{"n":0,"ret":null,"v":"none","ok":false,"sure":"High"},"Janwal Pashmi":{"n":0,"ret":null,"v":"none","ok":false,"sure":"High"},"Labrador Retriever":{"n":29750,"ret":6.2,"v":"corrected","ok":true,"sure":"Medium-High"},"Indian Pariah (Indie)":{"n":25083,"ret":5.1,"v":"corrected","ok":true,"sure":"Medium-High"},"Pomeranian":{"n":2518,"ret":5.9,"v":"corrected","ok":true,"sure":"Medium-High"},"Pug":{"n":2383,"ret":6.5,"v":"corrected","ok":true,"sure":"Medium-High"},"French Bulldog":{"n":2376,"ret":6.6,"v":"corrected","ok":true,"sure":"Medium-High"},"Rottweiler":{"n":1102,"ret":4.9,"v":"corrected","ok":true,"sure":"Medium-High"},"Doberman":{"n":739,"ret":4.5,"v":"confirmed","ok":true,"sure":"Medium"},"Chihuahua":{"n":689,"ret":8.0,"v":"confirmed","ok":true,"sure":"Medium"},"Dachshund (Standard)":{"n":619,"ret":3.2,"v":"corrected","ok":true,"sure":"Medium"},"Boxer":{"n":607,"ret":6.1,"v":"confirmed","ok":true,"sure":"Medium"},"Amstaff / Pit-type":{"n":506,"ret":7.9,"v":"corrected","ok":true,"sure":"Medium"},"Chow Chow":{"n":477,"ret":6.1,"v":"corrected","ok":true,"sure":"Medium"},"Yorkshire Terrier":{"n":374,"ret":4.0,"v":"confirmed","ok":true,"sure":"Medium"},"Jack Russell Terrier":{"n":273,"ret":4.0,"v":"none","ok":false,"sure":"Low"},"Great Dane":{"n":191,"ret":0.5,"v":"none","ok":false,"sure":"Low"},"Indian Spitz":{"n":85,"ret":7.1,"v":"none","ok":false,"sure":"Low"},"Dalmatian":{"n":67,"ret":4.5,"v":"none","ok":false,"sure":"Low"},"Cane Corso":{"n":53,"ret":0.0,"v":"none","ok":false,"sure":"Low"},"Pembroke Corgi":{"n":39,"ret":0.0,"v":"none","ok":false,"sure":"Low"},"English Bulldog":{"n":9,"ret":0.0,"v":"none","ok":false,"sure":"Low"},"Samoyed":{"n":9,"ret":0.0,"v":"none","ok":false,"sure":"Low"},"Border Collie":{"n":3,"ret":0.0,"v":"none","ok":false,"sure":"Low"},"Basset Hound":{"n":3,"ret":0.0,"v":"none","ok":false,"sure":"Low"},"Toy Poodle":{"n":0,"ret":null,"v":"none","ok":false,"sure":"Low"},"Shiba Inu":{"n":0,"ret":null,"v":"none","ok":false,"sure":"Low"},"Belgian Malinois":{"n":0,"ret":null,"v":"none","ok":false,"sure":"Low"},"Saint Bernard":{"n":0,"ret":null,"v":"none","ok":false,"sure":"Low"},"Rampur Greyhound":{"n":0,"ret":null,"v":"none","ok":false,"sure":"Low"},"Himalayan Sheepdog (Gaddi)":{"n":0,"ret":null,"v":"none","ok":false,"sure":"Low"},"Bully Kutta (Indian Mastiff)":{"n":0,"ret":null,"v":"none","ok":false,"sure":"Low"},"Standard Poodle":{"n":0,"ret":null,"v":"none","ok":false,"sure":"Low"},"Bullmastiff":{"n":0,"ret":null,"v":"none","ok":false,"sure":"Low"},"Tibetan Mastiff":{"n":0,"ret":null,"v":"none","ok":false,"sure":"Low"},"Alaskan Malamute":{"n":0,"ret":null,"v":"none","ok":false,"sure":"Low"},"Jonangi":{"n":0,"ret":null,"v":"none","ok":false,"sure":"Low"},"Pandikona":{"n":0,"ret":null,"v":"none","ok":false,"sure":"Low"},"Banjara Hound":{"n":0,"ret":null,"v":"none","ok":false,"sure":"Low"}};
+const REC_PRODUCTS = ["Raincoat", "T-Shirt", "Sweater", "Sweatshirt", "Jacket", "Kurta", "Sherwani", "Shirt", "Collar", "Collar & Leash", "Harness"];
+const REC_MATRIX = {"Chihuahua":{"Raincoat":"M–XL","T-Shirt":"S–L","Sweater":"S–M","Sweatshirt":"S–L","Jacket":"S–M","Kurta":"M–XL","Sherwani":"M–XL","Shirt":"S–M","Collar":"2XS–S","Collar & Leash":"S","Harness":"XS–S"},"Yorkshire Terrier":{"Raincoat":"L–XL","T-Shirt":"S–L","Sweater":"S–M","Sweatshirt":"S–L","Jacket":"S–M","Kurta":"L–XL","Sherwani":"L–XL","Shirt":"S–M","Collar":"2XS–S","Collar & Leash":"S","Harness":"XS–S"},"Toy Poodle":{"Raincoat":"L–XL","T-Shirt":"S–XL","Sweater":"S–L","Sweatshirt":"S–XL","Jacket":"S–L","Kurta":"L–2XL","Sherwani":"L–2XL","Shirt":"S–L","Collar":"2XS–S","Collar & Leash":"S","Harness":"XS–S"},"Maltese":{"Raincoat":"L–XL","T-Shirt":"S–XL","Sweater":"S–L","Sweatshirt":"S–XL","Jacket":"S–L","Kurta":"L–2XL","Sherwani":"L–2XL","Shirt":"S–L","Collar":"One Size–M","Collar & Leash":"S–M","Harness":"XS–M"},"Pomeranian":{"Raincoat":"XL–3XL","T-Shirt":"L–2XL","Sweater":"M–XL","Sweatshirt":"L–2XL","Jacket":"M–2XL","Kurta":"XL–3XL","Sherwani":"XL–3XL","Shirt":"M–2XL","Collar":"S–M","Collar & Leash":"S–M","Harness":"XS/S–M"},"Indian Spitz":{"Raincoat":"L–2XL","T-Shirt":"M–2XL","Sweater":"S–XL","Sweatshirt":"M–2XL","Jacket":"S–XL","Kurta":"L–3XL","Sherwani":"L–3XL","Shirt":"M–2XL","Collar":"S–M","Collar & Leash":"S–M","Harness":"S–L"},"Shih Tzu":{"Raincoat":"XL–2XL","T-Shirt":"L–XL","Sweater":"M–L","Sweatshirt":"L–XL","Jacket":"M–XL","Kurta":"XL–2XL","Sherwani":"XL–2XL","Shirt":"M–XL","Collar":"S–M","Collar & Leash":"S–M","Harness":"XS/S–M"},"Lhasa Apso":{"Raincoat":"XL–2XL","T-Shirt":"L–XL","Sweater":"M–XL","Sweatshirt":"L–XL","Jacket":"M–XL","Kurta":"XL–2XL","Sherwani":"XL–2XL","Shirt":"L–XL","Collar":"S–M","Collar & Leash":"S–M","Harness":"S–M"},"Pug":{"Raincoat":"XL–2XL","T-Shirt":"XL","Sweater":"L–XL","Sweatshirt":"XL","Jacket":"L–XL","Kurta":"2XL","Sherwani":"2XL","Shirt":"L–XL","Collar":"M","Collar & Leash":"M","Harness":"M–M/L"},"Dachshund (Standard)":{"Raincoat":"XL–3XL","T-Shirt":"XL–2XL","Sweater":"L–XL","Sweatshirt":"XL–2XL","Jacket":"L–2XL","Kurta":"2XL–3XL","Sherwani":"2XL–3XL","Shirt":"L–2XL","Collar":"S–M","Collar & Leash":"S–M","Harness":"XS/S–L/XL"},"Jack Russell Terrier":{"Raincoat":"L–XL","T-Shirt":"M–XL","Sweater":"S–L","Sweatshirt":"M–XL","Jacket":"S–L","Kurta":"L–2XL","Sherwani":"L–2XL","Shirt":"M–L","Collar":"One Size–M","Collar & Leash":"S–M","Harness":"XS/S–M/L"},"French Bulldog":{"Raincoat":"2XL–3XL","T-Shirt":"XL–2XL","Sweater":"L–XL","Sweatshirt":"XL–2XL","Jacket":"XL–2XL","Kurta":"2XL–3XL","Sherwani":"2XL–3XL","Shirt":"XL–2XL","Collar":"M","Collar & Leash":"M","Harness":"M–L/XL"},"Beagle":{"Raincoat":"2XL–3XL","T-Shirt":"XL–2XL","Sweater":"XL–2XL","Sweatshirt":"XL–2XL","Jacket":"XL–2XL","Kurta":"2XL–3XL","Sherwani":"2XL–3XL","Shirt":"XL–2XL","Collar":"M","Collar & Leash":"M","Harness":"M–L"},"Cocker Spaniel":{"Raincoat":"2XL–3XL","T-Shirt":"XL–2XL","Sweater":"XL–2XL","Sweatshirt":"XL–2XL","Jacket":"XL–2XL","Kurta":"2XL–3XL","Sherwani":"2XL–3XL","Shirt":"XL–2XL","Collar":"S–M","Collar & Leash":"S–M","Harness":"M–L"},"Shiba Inu":{"Raincoat":"XL–3XL","T-Shirt":"XL–2XL","Sweater":"L–2XL","Sweatshirt":"XL–2XL","Jacket":"L–2XL","Kurta":"2XL–3XL","Sherwani":"2XL–3XL","Shirt":"L–2XL","Collar":"S–M","Collar & Leash":"S–M","Harness":"M–L"},"Pembroke Corgi":{"Raincoat":"2XL–4XL","T-Shirt":"2XL–4XL","Sweater":"XL–3XL","Sweatshirt":"2XL–4XL","Jacket":"XL–3XL","Kurta":"3XL–4XL","Sherwani":"3XL–4XL","Shirt":"2XL–4XL","Collar":"S–M","Collar & Leash":"M","Harness":"M/L–XL"},"English Bulldog":{"Raincoat":"2XL–4XL","T-Shirt":"2XL–3XL","Sweater":"XL–3XL","Sweatshirt":"2XL–3XL","Jacket":"XL–3XL","Kurta":"3XL–4XL","Sherwani":"3XL–4XL","Shirt":"2XL–3XL","Collar":"M–L","Collar & Leash":"M–L","Harness":"XL–XL/2XL"},"Amstaff / Pit-type":{"Raincoat":"4XL–5XL","T-Shirt":"3XL–4XL","Sweater":"2XL–4XL","Sweatshirt":"3XL–4XL","Jacket":"3XL–4XL","Kurta":"4XL–5XL","Sherwani":"4XL–5XL","Shirt":"3XL–4XL","Collar":"M–L","Collar & Leash":"M–L","Harness":"L–XL/2XL"},"Border Collie":{"Raincoat":"3XL–4XL","T-Shirt":"2XL–4XL","Sweater":"2XL–3XL","Sweatshirt":"2XL–4XL","Jacket":"2XL–4XL","Kurta":"3XL–5XL","Sherwani":"3XL–5XL","Shirt":"2XL–4XL","Collar":"S–M","Collar & Leash":"M–L","Harness":"M/L–2XL"},"Indian Pariah (Indie)":{"Raincoat":"2XL–4XL","T-Shirt":"XL–3XL","Sweater":"XL–3XL","Sweatshirt":"XL–3XL","Jacket":"XL–3XL","Kurta":"2XL–4XL","Sherwani":"2XL–4XL","Shirt":"XL–3XL","Collar":"S–M","Collar & Leash":"S–M","Harness":"M–XL"},"Dalmatian":{"Raincoat":"4XL–5XL","T-Shirt":"3XL–4XL","Sweater":"3XL–4XL","Sweatshirt":"3XL–4XL","Jacket":"3XL–4XL","Kurta":"4XL–5XL","Sherwani":"4XL–5XL","Shirt":"3XL–4XL","Collar":"S–L","Collar & Leash":"M–L","Harness":"L–XL/2XL"},"Siberian Husky":{"Raincoat":"4XL–5XL","T-Shirt":"3XL–4XL","Sweater":"2XL–4XL","Sweatshirt":"3XL–4XL","Jacket":"3XL–4XL","Kurta":"4XL–5XL","Sherwani":"4XL–5XL","Shirt":"3XL–5XL","Collar":"M–L","Collar & Leash":"M–L","Harness":"L–XL/2XL"},"Samoyed":{"Raincoat":"3XL–4XL","T-Shirt":"3XL–4XL","Sweater":"2XL–3XL","Sweatshirt":"3XL–4XL","Jacket":"2XL–4XL","Kurta":"3XL–5XL","Sherwani":"3XL–5XL","Shirt":"3XL–4XL","Collar":"M–L","Collar & Leash":"M–L","Harness":"L–XL/2XL"},"Chow Chow":{"Raincoat":"4XL–5XL","T-Shirt":"3XL–4XL","Sweater":"2XL–4XL","Sweatshirt":"3XL–4XL","Jacket":"3XL–4XL","Kurta":"4XL–5XL","Sherwani":"4XL–5XL","Shirt":"3XL–4XL","Collar":"L","Collar & Leash":"L","Harness":"XL–XL/2XL"},"Boxer":{"Raincoat":"4XL–5XL","T-Shirt":"3XL–4XL","Sweater":"3XL–4XL","Sweatshirt":"3XL–4XL","Jacket":"3XL–4XL","Kurta":"4XL–5XL","Sherwani":"4XL–5XL","Shirt":"3XL–4XL","Collar":"M–L","Collar & Leash":"M–L","Harness":"XL–XL/2XL"},"Labrador Retriever":{"Raincoat":"4XL–5XL","T-Shirt":"3XL–4XL","Sweater":"3XL–4XL","Sweatshirt":"3XL–4XL","Jacket":"3XL–4XL","Kurta":"4XL–5XL","Sherwani":"4XL–5XL","Shirt":"3XL–5XL","Collar":"M–L","Collar & Leash":"M–L","Harness":"L–XL/2XL"},"Golden Retriever":{"Raincoat":"4XL–5XL","T-Shirt":"3XL–4XL","Sweater":"3XL–4XL","Sweatshirt":"3XL–4XL","Jacket":"3XL–4XL","Kurta":"4XL–5XL","Sherwani":"4XL–5XL","Shirt":"3XL–5XL","Collar":"M–L","Collar & Leash":"M–L","Harness":"L–XL/2XL"},"German Shepherd":{"Raincoat":"4XL–5XL","T-Shirt":"3XL–5XL","Sweater":"3XL–4XL","Sweatshirt":"3XL–5XL","Jacket":"3XL–5XL","Kurta":"4XL–5XL","Sherwani":"4XL–5XL","Shirt":"3XL–5XL","Collar":"M–L","Collar & Leash":"M–L","Harness":"L–XL/2XL"},"Doberman":{"Raincoat":"5XL","T-Shirt":"4XL","Sweater":"4XL","Sweatshirt":"4XL","Jacket":"4XL","Kurta":"5XL","Sherwani":"5XL","Shirt":"4XL–5XL","Collar":"M–L","Collar & Leash":"M–L","Harness":"XL–XL/2XL"},"Belgian Malinois":{"Raincoat":"4XL–5XL","T-Shirt":"3XL–5XL","Sweater":"3XL–4XL","Sweatshirt":"3XL–5XL","Jacket":"3XL–4XL","Kurta":"4XL–5XL","Sherwani":"4XL–5XL","Shirt":"3XL–5XL","Collar":"M–L","Collar & Leash":"M–L","Harness":"L–XL/2XL"},"Rottweiler":{"Raincoat":"5XL","T-Shirt":"4XL–5XL","Sweater":"4XL","Sweatshirt":"4XL–5XL","Jacket":"4XL–5XL","Kurta":"5XL","Sherwani":"5XL","Shirt":"4XL–5XL","Collar":"L","Collar & Leash":"L","Harness":"2XL–XL/2XL"},"Great Dane":{"Raincoat":"5XL–6XL","T-Shirt":"5XL","Sweater":"4XL","Sweatshirt":"5XL","Jacket":"5XL","Kurta":"5XL","Sherwani":"5XL","Shirt":"5XL","Collar":"L","Collar & Leash":"L","Harness":"XL/2XL"},"Saint Bernard":{"Raincoat":"5XL–6XL","T-Shirt":"5XL","Sweater":"4XL","Sweatshirt":"5XL","Jacket":"4XL–5XL","Kurta":"5XL","Sherwani":"5XL","Shirt":"5XL","Collar":"L","Collar & Leash":"L","Harness":"XL/2XL"},"Cane Corso":{"Raincoat":"4XL–6XL","T-Shirt":"4XL–5XL","Sweater":"3XL–4XL","Sweatshirt":"4XL–5XL","Jacket":"4XL–5XL","Kurta":"5XL","Sherwani":"5XL","Shirt":"4XL–5XL","Collar":"L","Collar & Leash":"L","Harness":"XL/2XL"},"Rajapalayam":{"Raincoat":"2XL–4XL","T-Shirt":"2XL–4XL","Sweater":"XL–3XL","Sweatshirt":"2XL–4XL","Jacket":"XL–4XL","Kurta":"3XL–5XL","Sherwani":"3XL–5XL","Shirt":"2XL–4XL","Collar":"S–M","Collar & Leash":"S–M","Harness":"M/L–2XL"},"Mudhol / Caravan Hound":{"Raincoat":"3XL–4XL","T-Shirt":"2XL–4XL","Sweater":"XL–3XL","Sweatshirt":"2XL–4XL","Jacket":"2XL–4XL","Kurta":"3XL–5XL","Sherwani":"3XL–5XL","Shirt":"2XL–4XL","Collar":"S–M","Collar & Leash":"S–M","Harness":"L/XL–XL/2XL"},"Chippiparai":{"Raincoat":"2XL–6XL","T-Shirt":"2XL–5XL","Sweater":"XL–4XL","Sweatshirt":"2XL–5XL","Jacket":"XL–5XL","Kurta":"3XL–5XL","Sherwani":"3XL–5XL","Shirt":"2XL–5XL","Collar":"S–M","Collar & Leash":"S–M","Harness":"S–XL/2XL"},"Kanni":{"Raincoat":"4XL–5XL","T-Shirt":"3XL–4XL","Sweater":"3XL–4XL","Sweatshirt":"3XL–4XL","Jacket":"3XL–4XL","Kurta":"4XL–5XL","Sherwani":"4XL–5XL","Shirt":"3XL–4XL","Collar":"S–M","Collar & Leash":"M","Harness":"M/L–2XL"},"Kombai":{"Raincoat":"3XL–4XL","T-Shirt":"3XL–4XL","Sweater":"2XL–3XL","Sweatshirt":"3XL–4XL","Jacket":"2XL–4XL","Kurta":"3XL–5XL","Sherwani":"3XL–5XL","Shirt":"3XL–4XL","Collar":"M–L","Collar & Leash":"M–L","Harness":"XL–XL/2XL"},"Rampur Greyhound":{"Raincoat":"4XL–6XL","T-Shirt":"4XL–5XL","Sweater":"3XL–4XL","Sweatshirt":"4XL–5XL","Jacket":"3XL–5XL","Kurta":"4XL–5XL","Sherwani":"4XL–5XL","Shirt":"4XL–5XL","Collar":"S–M","Collar & Leash":"M–L","Harness":"L–XL/2XL"},"Himalayan Sheepdog (Gaddi)":{"Raincoat":"4XL–5XL","T-Shirt":"3XL–4XL","Sweater":"3XL–4XL","Sweatshirt":"3XL–4XL","Jacket":"3XL–4XL","Kurta":"4XL–5XL","Sherwani":"4XL–5XL","Shirt":"3XL–5XL","Collar":"L","Collar & Leash":"L","Harness":"2XL–XL/2XL"},"Bully Kutta (Indian Mastiff)":{"Raincoat":"6XL","T-Shirt":"5XL","Sweater":"4XL","Sweatshirt":"5XL","Jacket":"5XL","Kurta":"5XL","Sherwani":"5XL","Shirt":"5XL","Collar":"L","Collar & Leash":"L","Harness":"XL/2XL"},"Standard Poodle":{"Raincoat":"4XL–5XL","T-Shirt":"3XL–4XL","Sweater":"3XL–4XL","Sweatshirt":"3XL–4XL","Jacket":"3XL–4XL","Kurta":"4XL–5XL","Sherwani":"4XL–5XL","Shirt":"3XL–4XL","Collar":"M–L","Collar & Leash":"M–L","Harness":"L–XL/2XL"},"Basset Hound":{"Raincoat":"4XL–5XL","T-Shirt":"3XL–5XL","Sweater":"3XL–4XL","Sweatshirt":"3XL–5XL","Jacket":"3XL–4XL","Kurta":"4XL–5XL","Sherwani":"4XL–5XL","Shirt":"3XL–5XL","Collar":"M–L","Collar & Leash":"M–L","Harness":"L–XL/2XL"},"Bullmastiff":{"Raincoat":"5XL–6XL","T-Shirt":"4XL–5XL","Sweater":"4XL","Sweatshirt":"4XL–5XL","Jacket":"4XL–5XL","Kurta":"5XL","Sherwani":"5XL","Shirt":"4XL–5XL","Collar":"L","Collar & Leash":"L","Harness":"XL/2XL"},"Tibetan Mastiff":{"Raincoat":"5XL–6XL","T-Shirt":"4XL–5XL","Sweater":"4XL","Sweatshirt":"4XL–5XL","Jacket":"4XL–5XL","Kurta":"5XL","Sherwani":"5XL","Shirt":"4XL–5XL","Collar":"L","Collar & Leash":"L","Harness":"XL/2XL"},"Alaskan Malamute":{"Raincoat":"4XL–5XL","T-Shirt":"3XL–5XL","Sweater":"3XL–4XL","Sweatshirt":"3XL–5XL","Jacket":"3XL–4XL","Kurta":"4XL–5XL","Sherwani":"4XL–5XL","Shirt":"3XL–5XL","Collar":"M–L","Collar & Leash":"M–L","Harness":"2XL–XL/2XL"},"Jonangi":{"Raincoat":"2XL–4XL","T-Shirt":"2XL–3XL","Sweater":"XL–3XL","Sweatshirt":"2XL–3XL","Jacket":"XL–3XL","Kurta":"3XL–4XL","Sherwani":"3XL–4XL","Shirt":"2XL–3XL","Collar":"S–M","Collar & Leash":"S–M","Harness":"M–L"},"Pandikona":{"Raincoat":"3XL–5XL","T-Shirt":"3XL–4XL","Sweater":"2XL–4XL","Sweatshirt":"3XL–4XL","Jacket":"2XL–4XL","Kurta":"3XL–5XL","Sherwani":"3XL–5XL","Shirt":"3XL–4XL","Collar":"S–M","Collar & Leash":"M","Harness":"M/L–2XL"},"Banjara Hound":{"Raincoat":"4XL–6XL","T-Shirt":"4XL–5XL","Sweater":"3XL–4XL","Sweatshirt":"4XL–5XL","Jacket":"3XL–5XL","Kurta":"4XL–5XL","Sherwani":"4XL–5XL","Shirt":"4XL–5XL","Collar":"S–M","Collar & Leash":"M","Harness":"L/XL–XL/2XL"},"Janwal Pashmi":{"Raincoat":"2XL–4XL","T-Shirt":"XL–3XL","Sweater":"L–3XL","Sweatshirt":"XL–3XL","Jacket":"L–3XL","Kurta":"2XL–4XL","Sherwani":"2XL–4XL","Shirt":"XL–3XL","Collar":"S–M","Collar & Leash":"S–M","Harness":"M/L–XL/2XL"}};
+
 /* ---------- fit maths ---------- */
 function overlapPct(breed, prod){ const lo=Math.max(breed[0],prod[0]), hi=Math.min(breed[1],prod[1]); return hi<=lo?0:(hi-lo)/(breed[1]-breed[0]); }
 function gradeOf(p){ return p>=0.9?"full":p>=0.55?"good":p>0?"partial":"none"; }
@@ -222,7 +227,7 @@ const MONO = { fontFamily:"'IBM Plex Mono', ui-monospace, monospace" };
 
 /* ---------- small components ---------- */
 const CONF_ROWS=[["A","Real measurement","± 2–3 cm","#00854D","#E5F9F0"],["B","From sizing charts","± 4–6 cm","#B47500","#FEF1E5"],["C","Estimated, not yet checked","± 8 cm +","#E2445C","#FCE9EC"]];
-function ConfBadge({tier,label}){
+function ConfBadge({tier,label,sales}){
   const [hov,setHov]=useState(false);
   const c=CONF[tier];
   return (
@@ -231,33 +236,46 @@ function ConfBadge({tier,label}){
       {hov && (
         <span style={{position:"absolute",top:"calc(100% + 8px)",left:"50%",transform:"translateX(-50%)",width:236,background:"#fff",border:"1px solid #E6E9EF",borderRadius:8,boxShadow:"0 8px 28px rgba(50,51,56,0.22)",padding:"10px 11px",zIndex:60,textAlign:"left",whiteSpace:"normal",cursor:"default"}}>
           <span style={{position:"absolute",bottom:"100%",left:"50%",transform:"translateX(-50%)",width:0,height:0,borderLeft:"7px solid transparent",borderRight:"7px solid transparent",borderBottom:"7px solid #fff",filter:"drop-shadow(0 -1px 0 #E6E9EF)"}}/>
-          <span style={{display:"block",fontSize:11.5,fontWeight:600,color:"#323338",marginBottom:6,fontFamily:"'Rubik',sans-serif"}}>{label?label+" — ":""}How sure are we?</span>
+          <span style={{display:"block",fontSize:11.5,fontWeight:600,color:"#323338",marginBottom:2,fontFamily:"'Rubik',sans-serif"}}>{label?label+" — ":""}How sure are we?</span>
+          <span style={{display:"block",fontSize:9.5,color:"#9699A6",marginBottom:6,fontFamily:"'Rubik',sans-serif"}}>Knowledge grade + real sales</span>
           {CONF_ROWS.map(([t,desc,tol,col,bg])=>(
             <span key={t} style={{display:"flex",gap:7,alignItems:"flex-start",padding:"3px 0",opacity:t===tier?1:0.5}}>
               <span style={{...MONO,fontSize:9.5,fontWeight:700,padding:"1px 5px",borderRadius:3,background:bg,color:col,flexShrink:0,marginTop:1}}>{t}</span>
               <span style={{fontSize:10.5,lineHeight:1.35,color:"#40434E",fontFamily:"'Rubik',sans-serif"}}>{desc} <b style={{color:col}}>{tol}</b></span>
             </span>
           ))}
-          <span style={{display:"block",fontSize:10,color:"#9699A6",marginTop:6,lineHeight:1.4,fontFamily:"'Rubik',sans-serif"}}>Indian lines often run heavier than international standards.</span>
+          {sales && (sales.ok ? (
+            <span style={{display:"block",fontSize:10,color:"#00854D",marginTop:6,lineHeight:1.4,fontFamily:"'Rubik',sans-serif",background:"#E5F9F0",borderRadius:5,padding:"5px 7px"}}>✓ <b>Sales-confirmed</b> — customers keep the expected size across {sales.n.toLocaleString()} purchases ({sales.ret}% sizing returns), so real-world trust is high even at grade {tier}.</span>
+          ) : (
+            <span style={{display:"block",fontSize:10,color:"#9699A6",marginTop:6,lineHeight:1.4,fontFamily:"'Rubik',sans-serif"}}>No sales signal for this breed yet — confidence is from the knowledge base only. Indian lines often run heavier than international charts.</span>
+          ))}
+          {!sales && <span style={{display:"block",fontSize:10,color:"#9699A6",marginTop:6,lineHeight:1.4,fontFamily:"'Rubik',sans-serif"}}>Indian lines often run heavier than international standards.</span>}
         </span>
       )}
     </span>
   );
 }
-function IndiaReadyBadge({indiaReady}){
+function SalesBadge({b}){
   const [hov,setHov]=useState(false);
-  if(!indiaReady) return null;
-  const s=READY_STYLE[indiaReady.status]||READY_STYLE["Provisional"];
+  const sv = b && typeof SALES!=="undefined" ? SALES[b.name] : null;
+  if(!sv) return null;
+  const ok=sv.ok;
+  const bg=ok?"#E5F9F0":"#EAECF2", col=ok?"#00854D":"#9699A6", bd=ok?"#00854D":"#C3C6D4";
+  const label=ok?"✓ Sales-verified":"No sales data";
   return (
     <span style={{position:"relative",display:"inline-flex"}} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)} onClick={e=>{e.stopPropagation();setHov(h=>!h);}}>
-      <span style={{...MONO,fontSize:9.5,fontWeight:700,padding:"2px 8px",borderRadius:999,background:s.bg,color:s.color,border:`1px solid ${s.bd}66`,cursor:"help",whiteSpace:"nowrap"}}>{indiaReady.status==="India-ready"?"🇮🇳 India-ready":"Provisional"} · {indiaReady.score}/5</span>
+      <span style={{...MONO,fontSize:9.5,fontWeight:700,padding:"2px 8px",borderRadius:999,background:bg,color:col,border:`1px solid ${bd}66`,cursor:"help",whiteSpace:"nowrap"}}>{label}</span>
       {hov && (
         // Offset well past the breed's own neck/chest subtitle line directly below
         // the badge, so the popup doesn't render on top of (and hide) that data.
         <span style={{position:"absolute",top:"calc(100% + 30px)",left:0,width:250,background:"#fff",border:"1px solid #E6E9EF",borderRadius:8,boxShadow:"0 8px 28px rgba(50,51,56,0.22)",padding:"10px 11px",zIndex:60,textAlign:"left",whiteSpace:"normal",cursor:"default",fontFamily:"'Rubik',sans-serif"}}>
-          <span style={{display:"block",fontSize:11.5,fontWeight:600,color:"#323338",marginBottom:4}}>Indian data readiness — {indiaReady.score}/5</span>
-          <span style={{display:"block",fontSize:10.5,lineHeight:1.4,color:"#40434E"}}>{indiaReady.basis}</span>
-          <span style={{display:"block",fontSize:10,color:"#9699A6",marginTop:6}}>Fit-critical (neck+chest) confidence <b>{indiaReady.fitConf}</b> · overall <b>{indiaReady.overallConf}</b></span>
+          <span style={{display:"block",fontSize:11.5,fontWeight:600,color:"#323338",marginBottom:4}}>Confidence — Knowledge + Sales</span>
+          {ok ? (
+            <span style={{display:"block",fontSize:10.5,lineHeight:1.4,color:"#40434E"}}>{sv.v==="corrected"?"Sales corrected the KB size for this breed":"Sales confirmed the KB size for this breed"} — across <b>{sv.n.toLocaleString()}</b> fit-category purchases, customers keep the expected size ({sv.ret}% returned for sizing).</span>
+          ) : (
+            <span style={{display:"block",fontSize:10.5,lineHeight:1.4,color:"#40434E"}}>Not enough sales in fit categories to confirm this breed. Confidence rests on the knowledge base only — treat sizes as provisional.</span>
+          )}
+          <span style={{display:"block",fontSize:10,color:"#9699A6",marginTop:6}}>Overall confidence: <b>{sv.sure}</b></span>
         </span>
       )}
     </span>
@@ -365,7 +383,7 @@ function BreedCard({b,feedback,onAddFeedback,onDelete,defaultOpen}){
     <div style={{background:"#fff",borderRadius:8,border:b.custom?"1.5px dashed #676879":bad?"1.5px solid #F0A6B4":"1px solid #E6E9EF",marginBottom:10,overflow:"visible"}}>
       <button onClick={()=>setOpen(!open)} style={{display:"flex",width:"100%",justifyContent:"space-between",alignItems:"center",gap:10,padding:"13px 16px",border:"none",background:"transparent",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
         <div style={{minWidth:0}}>
-          <div style={{fontWeight:700,fontSize:15,color:"#323338",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>{b.name} {b.huft && <span title="HUFT shop-by-breed priority" style={{fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:999,background:"#FF6D1F",color:"#fff",verticalAlign:"middle"}}>HUFT SIX</span>} {b.custom && <span style={{fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:999,background:"#F0F1F6",color:"#565A6E",verticalAlign:"middle"}}>TEAM-ADDED</span>} <IndiaReadyBadge indiaReady={b.indiaReady}/> {bad>0 && <span title="Team flagged data issues" style={{fontSize:11,color:"#E2445C"}}>⚑ {bad}</span>}</div>
+          <div style={{fontWeight:700,fontSize:15,color:"#323338",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>{b.name} {b.huft && <span title="HUFT shop-by-breed priority" style={{fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:999,background:"#FF6D1F",color:"#fff",verticalAlign:"middle"}}>HUFT SIX</span>} {b.custom && <span style={{fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:999,background:"#F0F1F6",color:"#565A6E",verticalAlign:"middle"}}>TEAM-ADDED</span>} <SalesBadge b={b}/> {bad>0 && <span title="Team flagged data issues" style={{fontSize:11,color:"#E2445C"}}>⚑ {bad}</span>}</div>
           <div style={{fontFamily:"'IBM Plex Mono', ui-monospace, monospace",fontSize:11.5,color:"#9699A6",marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{b.group} · neck {b.neck[0]}–{b.neck[1]} · chest {b.chest[0]}–{b.chest[1]} cm</div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
@@ -379,7 +397,7 @@ function BreedCard({b,feedback,onAddFeedback,onDelete,defaultOpen}){
         <div style={{...MONO,display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(112px, 1fr))",gap:8,marginTop:6,fontSize:12.5}}>
           {dims.map(([k,v,c])=>(
             <div key={k} style={{background:"#F5F6F8",borderRadius:8,padding:"8px 10px"}}>
-              <div style={{fontSize:10,color:"#9699A6",textTransform:"uppercase",letterSpacing:"0.06em",display:"flex",justifyContent:"space-between",alignItems:"center"}}>{k} <ConfBadge tier={c} label={k}/></div>
+              <div style={{fontSize:10,color:"#9699A6",textTransform:"uppercase",letterSpacing:"0.06em",display:"flex",justifyContent:"space-between",alignItems:"center"}}>{k} <ConfBadge tier={c} label={k} sales={(k==="Neck"||k==="Chest")&&typeof SALES!=="undefined"?SALES[b.name]:null}/></div>
               <div style={{fontWeight:600,marginTop:2,color:"#323338"}}>{v}</div>
             </div>
           ))}
@@ -1230,6 +1248,8 @@ function App({onLogout}){
   const [width,setWidth]=useState(2.5);
   const [fitCat,setFitCat]=useState("All");
   const [fitSub,setFitSub]=useState("All");
+  const [fitMode,setFitMode]=useState("breed");
+  const [fitBreed,setFitBreed]=useState("");
   const [fitProductName,setFitProductName]=useState("");
   const [fitVariantSize,setFitVariantSize]=useState("");
   const [fitNote,setFitNote]=useState("");
@@ -1359,7 +1379,7 @@ function App({onLogout}){
     const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=fname; a.click(); URL.revokeObjectURL(a.href);
   };
 
-  const filteredBreeds=ALL.filter(b=>(grp==="All"||b.group===grp)&&(readyFilter==="All"||(b.indiaReady||{}).status===readyFilter)&&b.name.toLowerCase().includes(query.toLowerCase()));
+  const filteredBreeds=ALL.filter(b=>(grp==="All"||b.group===grp)&&b.name.toLowerCase().includes(query.toLowerCase()));
   const searchResults=query.trim()?ALL.filter(b=>b.name.toLowerCase().includes(query.toLowerCase())):[];
 
   const coverage=useMemo(()=>ALL.map(b=>{
@@ -1447,6 +1467,50 @@ function App({onLogout}){
 
         {/* ===== FIT CHECKER ===== */}
         {tab==="fit" && <>
+          <section style={{...card,paddingBottom:12}}>
+            <div style={{display:"flex",gap:8,marginBottom:8}}>
+              {[["breed","🐕  By breed → sizes"],["product","👕  By product → breeds"]].map(([m,l])=>(
+                <button key={m} onClick={()=>setFitMode(m)} style={{flex:1,padding:"11px 8px",borderRadius:8,border:fitMode===m?"1.5px solid #FF6D1F":"1.5px solid #E6E9EF",background:fitMode===m?"#FEF1E5":"#fff",color:fitMode===m?"#BA4511":"#676879",fontWeight:700,fontSize:13.5,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+              ))}
+            </div>
+            <p style={{fontSize:12,color:"#676879",margin:0}}>{fitMode==="breed"?"Pick a breed — see the size to order in every product category.":"Pick a product — see which breeds it fits."}</p>
+          </section>
+
+          {fitMode==="breed" && <>
+            <section style={card}>
+              <select value={fitBreed} onChange={e=>setFitBreed(e.target.value)} style={{width:"100%",boxSizing:"border-box",padding:"11px 12px",borderRadius:8,border:"1.5px solid #C3C6D4",fontSize:14,fontFamily:"inherit",background:"#fff"}}>
+                <option value="">— Select a breed —</option>
+                {ALL.map(b=><option key={b.name} value={b.name}>{b.name}</option>)}
+              </select>
+              {fitBreed && (()=>{
+                const b=ALL.find(x=>x.name===fitBreed);
+                const rec=(typeof REC_MATRIX!=="undefined")?REC_MATRIX[fitBreed]:null;
+                const bl=(b&&b.care&&b.care.bodyLen)||(b&&b.height);
+                return (
+                  <div style={{marginTop:14}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:4}}>
+                      <span style={{fontWeight:700,fontSize:16}}>{fitBreed}</span>
+                      {b && <SalesBadge b={b}/>}
+                    </div>
+                    {b && <div style={{...MONO,fontSize:11.5,color:"#9699A6",marginBottom:14}}>neck {b.neck[0]}–{b.neck[1]} · chest {b.chest[0]}–{b.chest[1]}{bl?` · body ${bl[0]}–${bl[1]}`:""} cm</div>}
+                    {rec ? (
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(148px, 1fr))",gap:8}}>
+                        {REC_PRODUCTS.map(p=>(
+                          <div key={p} style={{background:"#F5F6F8",borderRadius:8,padding:"10px 12px"}}>
+                            <div style={{...MONO,fontSize:10,color:"#9699A6",textTransform:"uppercase",letterSpacing:"0.05em"}}>{p}</div>
+                            <div style={{fontWeight:700,fontSize:18,color:"#323338",marginTop:3}}>{rec[p]||"—"}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : <p style={{color:"#9699A6",fontSize:13}}>No size recommendation for this breed yet — it isn't in the sales-mapped set.</p>}
+                    <p style={{fontSize:11,color:"#9699A6",marginTop:14,lineHeight:1.5}}>Recommended sizes come from the breed's body dimensions matched to each product's size chart, tightened with real sales keep-rates. A range (e.g. L–XL) means either size can work depending on your dog's build within the breed.</p>
+                  </div>
+                );
+              })()}
+            </section>
+          </>}
+
+          {fitMode==="product" && <>
           <section style={card}>
             <h3 style={{margin:"0 0 4px",fontSize:14.5}}>Pick a product from the catalog</h3>
             <p style={{fontSize:12,color:"#676879",margin:"0 0 10px"}}>Choose a category and a product — dimensions load automatically from {fullCatalog.length.toLocaleString()} products in the HUFT Catalog. Or leave it on manual entry and type dimensions directly below.</p>
@@ -1543,7 +1607,7 @@ function App({onLogout}){
               <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:14,height:10,borderRadius:3,background:"#FFC299",display:"inline-block"}}/>Your product</span>
               <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:14,height:10,borderRadius:3,background:"#00A25B",display:"inline-block"}}/>Overlap</span>
             </div>
-            {results.filter(r=>!gradeFilter||r.grade===gradeFilter).map(({breed:b,nPct,cPct,grade,demand})=>{
+            {results.filter(r=>(gradeFilter?r.grade===gradeFilter:r.grade!=="none")).map(({breed:b,nPct,cPct,grade,demand})=>{
               const worstConf = ptype==="apparel" ? "B" : ptype==="harness" ? ([b.conf.neck,b.conf.chest].includes("C")?"C":[b.conf.neck,b.conf.chest].includes("B")?"B":"A") : b.conf.neck;
               const bodyLen=(b.care&&b.care.bodyLen)||b.height;
               return (
@@ -1583,6 +1647,8 @@ function App({onLogout}){
                 )}
               </div>);
             })}
+            {counts.none>0 && <p style={{fontSize:12,color:"#9699A6",margin:"4px 0 0",textAlign:"center"}}>{counts.none} breed{counts.none>1?"s":""} not shown — no usable fit for this product.</p>}
+          </>}
           </>}
         </>}
 
@@ -1595,12 +1661,8 @@ function App({onLogout}){
                 <button key={g} onClick={()=>setGrp(g)} style={{padding:"5px 12px",borderRadius:999,fontSize:12.5,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit",border:grp===g?"1.5px solid #323338":"1.5px solid #E6E9EF",background:grp===g?"#323338":"#fff",color:grp===g?"#F6C445":"#676879"}}>{g}</button>
               ))}
             </div>
-            <div style={{display:"flex",gap:6,overflowX:"auto",paddingTop:8,alignItems:"center"}}>
-              <span style={{fontSize:11,color:"#9699A6",textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,whiteSpace:"nowrap"}}>Indian readiness:</span>
-              {READY_FILTERS.map(rf=>(
-                <button key={rf} onClick={()=>setReadyFilter(rf)} style={{padding:"4px 11px",borderRadius:999,fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit",border:readyFilter===rf?`1.5px solid ${rf==="All"?"#323338":READY_STYLE[rf].bd}`:"1.5px solid #E6E9EF",background:readyFilter===rf?(rf==="All"?"#323338":READY_STYLE[rf].bg):"#fff",color:readyFilter===rf?(rf==="All"?"#F6C445":READY_STYLE[rf].color):"#676879"}}>{rf}</button>
-              ))}
-              <span style={{fontSize:11.5,color:"#9699A6"}}>{ALL.filter(b=>(b.indiaReady||{}).status==="India-ready").length} India-ready · {ALL.filter(b=>(b.indiaReady||{}).status==="Provisional").length} provisional</span>
+            <div style={{display:"flex",gap:6,paddingTop:8,alignItems:"center"}}>
+              <span style={{fontSize:11.5,color:"#9699A6"}}>{(typeof SALES!=="undefined"?ALL.filter(b=>SALES[b.name]&&SALES[b.name].ok).length:0)} sales-verified · rest confirmed by knowledge base only</span>
             </div>
             {query.trim() && <div style={{fontSize:12,color:"#676879",marginTop:8}}>Filtering by search: "{query}" — clear the top bar to see all.</div>}
           </section>
