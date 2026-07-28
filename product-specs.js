@@ -163,6 +163,24 @@ const PRODUCT_SPECS = {
 
   /* ================= KURTA ================= */
   "Kurta": {
+    "Dapper Doggo / Royal Elegance block": {
+      verified:true, src:"Festive Collection_Diwali 2024 #34 (a1f78397)",
+      sizes:["S","M","L","XL","2XL","3XL","4XL","5XL"],
+      back: [26,30,36,40,47,54,64,70],
+      girth:[41,48,53,59,64,74,87,104],
+      neck: [27,31,33,37,41,46,51,66],
+      bottom:[37,44,49,55,59,69,81,98],
+      /* weight + breed rows are blank for S and 5XL on this chart */
+      weightKg:[null,"3.2-4.8","4.8-7.0","7.0-11.0","11-16","22-30","30-38",null],
+      breedRec:{M:"Maltese, Yorkshire, Pekingese, Chihuahua", L:"Shih Tzu, Pekingese, Pomeranian",
+                XL:"Poodle, Shih Tzu, Pug, Schnauzer", "2XL":"Cocker Spaniel, Tibetan Terrier",
+                "3XL":"Cocker Spaniel, Laufhunds", "4XL":"Shar Pei, Boxer",
+                "5XL":"Labrador Retriever, Husky, Spinone"},
+      /* One chart serves a kurta AND a sherwani — cross-listed under Sherwani too.
+         This is the chart the app's existing Kurta size ladder was built from. */
+      alsoCategory:"Sherwani",
+      appliesTo:["Dapper Doggo Kurta For Dogs","Royal Elegance Sherwani For Dogs"]
+    },
     "Jaipuri block-print kurta": {
       verified:true, src:"Winter 2025 - PRODUCT DECK #247 (1b22f6d3)",
       sizes:["S","M","L","XL","2XL","3XL","4XL","5XL"],
@@ -186,6 +204,34 @@ const PRODUCT_SPECS = {
       neckMin:[32,36,39,42,46,52,56,62],
       neckMax:[42,44,49,52,57,64,68,72],
       appliesTo:["Petals & Pyaar Brocade Sherwani For Dogs"]
+    },
+    "Royal Elegance": {
+      verified:true, src:"Festive Collection_Diwali 2024 #34 (a1f78397)",
+      sizes:["S","M","L","XL","2XL","3XL","4XL","5XL"],
+      back: [26,30,36,40,47,54,64,70],
+      girth:[41,48,53,59,64,74,87,104],
+      neck: [27,31,33,37,41,46,51,66],
+      bottom:[37,44,49,55,59,69,81,98],
+      /* Same chart as Kurta / "Dapper Doggo / Royal Elegance block" — one chart image
+         is used on both products' slides. Duplicated here so a Sherwani lookup finds it. */
+      sharedWith:"Kurta / Dapper Doggo / Royal Elegance block",
+      appliesTo:["Royal Elegance Sherwani For Dogs"]
+    }
+  },
+
+  /* ================= BANDANA (accessory — neck only, no back/girth) ================= */
+  "Bandana": {
+    "Shahi Sherwani Bandana": {
+      verified:true, src:"Festive Collection_Diwali 2024 #9 (b0c03427)",
+      sizes:["S","M","L"],
+      length:[22,24,26],
+      width:[17,19,23],
+      neckMin:[32,38,43],
+      neckMax:[46,55,64],
+      strapWidth:[2,2,2],
+      /* Not body apparel: no back length or chest girth. Fits on neck range alone.
+         Was wrongly counted in the 70 apparel-chart total. */
+      appliesTo:["Shahi Sherwani Bandana for Dogs"]
     }
   }
 };
@@ -196,8 +242,9 @@ const SPEC_COVERAGE = {
   "Raincoat":   {read:5, total:8},
   "Sweater":    {read:6, total:6},   /* COMPLETE */
   "T-Shirt":    {read:1, total:14},
-  "Kurta":      {read:1, total:8},
-  "Sherwani":   {read:1, total:3},
+  "Kurta":      {read:2, total:9},   /* +1: a1f78397 was filed under Sherwani by the classifier */
+  "Sherwani":   {read:2, total:2},   /* COMPLETE — 3rd chart was a bandana, moved out */
+  "Bandana":    {read:1, total:1},   /* accessory, neck only — not part of the apparel matcher */
   "Sweatshirt": {read:0, total:9},
   "Jacket":     {read:0, total:10},
   "Dress":      {read:0, total:10},
