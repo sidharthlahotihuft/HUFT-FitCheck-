@@ -1650,8 +1650,8 @@ function App({onLogout}){
               const td={padding:"7px 10px",fontSize:12.5,color:"#323338",borderBottom:"1px solid #F0F1F6",...MONO};
               return (
                 <section style={card}>
-                  <h3 style={{margin:"0 0 4px",fontSize:14.5}}>Full size chart for a specific product</h3>
-                  <p style={{fontSize:12,color:"#676879",margin:"0 0 10px"}}>Pick a category and a product to see every dimension per size for <b>{fitBreed}</b>. Raincoats show back length, chest girth &amp; neck from the product spec deck; other categories show the catalog dimensions. The highlighted row is the size to order.</p>
+                  <h3 style={{margin:"0 0 4px",fontSize:14.5}}>Size to order for a specific product</h3>
+                  <p style={{fontSize:12,color:"#676879",margin:"0 0 10px"}}>Pick a category and a product to see the <b>recommended size(s) for {fitBreed}</b> with full dimensions. Raincoats show back length, chest girth &amp; neck from the product spec deck; other categories show the catalog dimensions.</p>
                   <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
                     <select value={drillSub} onChange={e=>{setDrillSub(e.target.value);setDrillProduct("");}} style={{padding:"9px 10px",borderRadius:8,border:"1.5px solid #C3C6D4",fontSize:13,fontFamily:"inherit",background:"#fff"}}>
                       {subs.map(s=><option key={s} value={s}>{s}</option>)}
@@ -1662,30 +1662,40 @@ function App({onLogout}){
                     </select>
                   </div>
                   {!prod && <p style={{fontSize:12,color:"#9699A6",margin:0}}>Choose a product above to see its full size chart.</p>}
-                  {prod && model && (()=>{ const rec=recSizesRaincoat(model,b); return (
+                  {prod && model && (()=>{
+                    const recP=(typeof REC_PRODUCTS!=="undefined" && REC_PRODUCTS.includes(drillSub) && REC_MATRIX[fitBreed])?REC_MATRIX[fitBreed][drillSub]:null;
+                    const recSizes=recP?recP.pair:null; const recBase=recP?recP.base:null;
+                    const bl=(b.care&&b.care.bodyLen)||b.height; const dm=(bl[0]+bl[1])/2;
+                    const rows=model.sizes.map((s,i)=>({s,i})).filter(x=> recSizes? recSizes.includes(x.s) : true);
+                    return (
                     <div style={{overflowX:"auto"}}>
-                      <div style={{fontSize:11,color:"#00854D",marginBottom:6}}>✓ Spec from the <b>{model.name}</b> product deck — all three fit dimensions.</div>
+                      <div style={{fontSize:11,color:"#00854D",marginBottom:6}}>✓ Size to order for <b>{fitBreed}</b> — spec from the <b>{model.name}</b> deck (back, chest &amp; neck).</div>
                       <table style={{borderCollapse:"collapse",width:"100%",minWidth:420}}><thead><tr><th style={th}>Size</th><th style={th}>Back length</th><th style={th}>Chest girth</th><th style={th}>Neck</th><th style={th}>Ease vs dog back</th></tr></thead><tbody>
-                        {model.sizes.map((s,i)=>{const on=rec[s]; const bl=(b.care&&b.care.bodyLen)||b.height; const dm=(bl[0]+bl[1])/2; const ea=Math.round(model.back[i]-dm); return (
+                        {rows.map(({s,i})=>{const on=s===recBase; const ea=Math.round(model.back[i]-dm); return (
                           <tr key={s} style={{background:on?"#FEF1E5":"transparent"}}>
-                            <td style={{...td,fontWeight:on?700:600,color:on?"#BA4511":"#323338"}}>{s}{on?" ◄":""}</td>
+                            <td style={{...td,fontWeight:on?700:600,color:on?"#BA4511":"#323338"}}>{s}{on?" ◄ best":""}</td>
                             <td style={td}>{model.back[i]} cm</td><td style={td}>{model.girth[i]} cm</td><td style={td}>{model.neck[i]} cm</td>
                             <td style={{...td,color:ea<0?"#E2445C":ea>15?"#B47500":"#00854D"}}>{ea>=0?"+":""}{ea} cm</td>
                           </tr>);})}
                       </tbody></table>
-                      <p style={{fontSize:11,color:"#9699A6",marginTop:8,lineHeight:1.5}}>{fitBreed} back is {((b.care&&b.care.bodyLen)||b.height)[0]}–{((b.care&&b.care.bodyLen)||b.height)[1]} cm, chest {b.chest[0]}–{b.chest[1]} cm. Highlighted size(s) match on back length (the primary raincoat fit dimension); cross-check chest girth against the coat's girth for deep-chested dogs. "Ease vs dog back" is how much longer the coat runs than the dog — aim for roughly +5 to +12 cm so it covers the back without dragging.</p>
+                      <p style={{fontSize:11,color:"#9699A6",marginTop:8,lineHeight:1.5}}>{fitBreed} back is {bl[0]}–{bl[1]} cm, chest {b.chest[0]}–{b.chest[1]} cm. These are the sizes to order (same as the grid above); the <b style={{color:"#BA4511"}}>◄ best</b> one is the top pick, the other suits a lighter/heavier dog. "Ease vs dog back" is how much longer the coat runs than the dog.</p>
                     </div>);})()}
-                  {prod && !model && (()=>{ const ch=productChart(prod); const bv=bestSizeForBreed(prod,b,ptypeOfSub(drillSub)); const recSize=bv?bv.size:null; return (
+                  {prod && !model && (()=>{ const ch=productChart(prod);
+                    const recP=(typeof REC_PRODUCTS!=="undefined" && REC_PRODUCTS.includes(drillSub) && REC_MATRIX[fitBreed])?REC_MATRIX[fitBreed][drillSub]:null;
+                    const recSizes=recP?recP.pair:null; const recBase=recP?recP.base:null;
+                    const bv=!recSizes?bestSizeForBreed(prod,b,ptypeOfSub(drillSub)):null; const single=bv?bv.size:null;
+                    const rows=ch.sizes.filter(s=> recSizes? recSizes.includes(s) : (single? s===single : true));
+                    return (
                     <div style={{overflowX:"auto"}}>
-                      <div style={{fontSize:11,color:"#676879",marginBottom:6}}>Dimensions from the HUFT catalog{ch.labels.length?"":" — this product has no structured per-size dimensions"}.</div>
-                      {ch.labels.length>0 && <table style={{borderCollapse:"collapse",width:"100%",minWidth:320}}><thead><tr><th style={th}>Size</th>{ch.labels.map(l=><th key={l} style={th}>{l}</th>)}</tr></thead><tbody>
-                        {ch.sizes.map(s=>{const on=s===recSize; return (
+                      <div style={{fontSize:11,color:"#676879",marginBottom:6}}>Size to order for <b>{fitBreed}</b> — dimensions from the HUFT catalog{ch.labels.length?"":" — this product has no structured per-size dimensions"}.</div>
+                      {ch.labels.length>0 && rows.length>0 && <table style={{borderCollapse:"collapse",width:"100%",minWidth:320}}><thead><tr><th style={th}>Size</th>{ch.labels.map(l=><th key={l} style={th}>{l}</th>)}</tr></thead><tbody>
+                        {rows.map(s=>{const on=s===(recBase||single); return (
                           <tr key={s} style={{background:on?"#FEF1E5":"transparent"}}>
-                            <td style={{...td,fontWeight:on?700:600,color:on?"#BA4511":"#323338"}}>{s}{on?" ◄":""}</td>
+                            <td style={{...td,fontWeight:on?700:600,color:on?"#BA4511":"#323338"}}>{s}{on?" ◄ best":""}</td>
                             {ch.labels.map(l=><td key={l} style={td}>{ch.data[s]&&ch.data[s][l]?ch.data[s][l]:"—"}</td>)}
                           </tr>);})}
                       </tbody></table>}
-                      {recSize && <p style={{fontSize:11,color:"#9699A6",marginTop:8}}>Recommended size for {fitBreed}: <b style={{color:"#BA4511"}}>{recSize}</b>.</p>}
+                      {rows.length===0 && <p style={{fontSize:12,color:"#9699A6"}}>No recommended size for this breed in this category.</p>}
                     </div>);})()}
                 </section>
               );
