@@ -544,12 +544,6 @@ function raincoatModelFor(name){
   for(const kv of RAINCOAT_MATCH){ if(n.includes(kv[0])) return Object.assign({name:kv[1]}, RAINCOAT_MODELS[kv[1]]); }
   return null;
 }
-function nearestIdx(arr,t){ let bi=0,bd=Infinity; arr.forEach((v,i)=>{const d=Math.abs(v-t); if(d<bd){bd=d;bi=i;}}); return bi; }
-// The single best size of a raincoat model for this breed (matched on back length + coverage ease).
-function recSizesRaincoat(model,b){
-  const bl=(b.care&&b.care.bodyLen)||b.height; const E=8; const mid=(bl[0]+bl[1])/2;
-  const i=nearestIdx(model.back, mid+E); const s={}; s[model.sizes[i]]=true; return s;
-}
 // ptype from a catalog subCategory, for fit maths on non-raincoat products.
 function ptypeOfSub(sub){ if(!sub) return "apparel"; const s=sub.toLowerCase();
   if(s.includes("harness")) return "harness"; if(s.includes("collar")||s.includes("leash")) return "collar"; return "apparel"; }
@@ -1566,9 +1560,8 @@ function App({onLogout}){
                       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))",gap:8}}>
                         {REC_PRODUCTS.map(p=>{const rc=rec[p]; const isSales=rc&&rc.src==="sales"; const internal=fitView==="internal";
                           const pair=rc?[...new Set(rc.pair)]:["—"];
-                          // Always show BOTH sizes. The answer only says which to START with.
-                          const startWith = !rc?"":(fitBody==="down"?pair[0]:fitBody==="up"?pair[pair.length-1]:"");
-                          const leanText = fitBody==="down"?`start with the smaller (${pair[0]})`:fitBody==="up"?`start with the larger (${pair[pair.length-1]})`:pair.length>1?"either size fits":"";
+                          // Customer sees ONE size — the answer resolves the pair: lean->smaller, chubby->larger, average->best.
+                          const pick = !rc?"—":(fitBody==="down"?pair[0]:fitBody==="up"?pair[pair.length-1]:rc.base);
                           return (
                           <div key={p} style={{background:"#F5F6F8",borderRadius:8,padding:"10px 12px",borderTop:isSales?"3px solid #00A25B":"3px solid #E6E9EF"}}>
                             <div style={{...MONO,fontSize:10,color:"#9699A6",textTransform:"uppercase",letterSpacing:"0.05em"}}>{p}</div>
@@ -1587,12 +1580,7 @@ function App({onLogout}){
                               {rc&&rc.note==="max" && <div style={{fontSize:9,color:"#BA4511",marginTop:2}}>⚠ largest size made — may run small for this breed</div>}
                               {rc&&rc.note==="min" && <div style={{fontSize:9,color:"#BA4511",marginTop:2}}>⚠ smallest size made — may run big for this breed</div>}
                             </> : (<>
-                              <div style={{display:"flex",gap:6,marginTop:4,alignItems:"center"}}>
-                                {pair.map((s,idx)=>(
-                                  <span key={idx} style={{fontWeight:700,fontSize:24,lineHeight:1,color:startWith&&s===startWith?"#BA4511":startWith?"#9699A6":"#323338"}}>{s}{idx<pair.length-1?<span style={{fontSize:16,color:"#C3C6D4",margin:"0 2px"}}> – </span>:null}</span>
-                                ))}
-                              </div>
-                              {leanText && <div style={{fontSize:10,color:"#676879",marginTop:3}}>{leanText}</div>}
+                              <div style={{fontWeight:700,fontSize:26,color:"#323338",marginTop:4,lineHeight:1}}>{pick}</div>
                               {rc&&rc.note==="max" && <div style={{fontSize:9,color:"#BA4511",marginTop:2}}>largest size — may run small</div>}
                               {rc&&rc.note==="min" && <div style={{fontSize:9,color:"#BA4511",marginTop:2}}>smallest size — may run big</div>}
                             </>)}
@@ -1600,7 +1588,7 @@ function App({onLogout}){
                         );})}
                       </div>
                     </>)}
-                    <p style={{fontSize:11,color:"#9699A6",marginTop:14,lineHeight:1.5}}>{fitView==="customer" ? <>Each product shows <b>2 sizes</b> — we always give the pair, because a range is reliable and a single guessed size isn't. If your dog is <b>chubby</b>, start with the larger; if <b>lean/active</b>, the smaller; if average, either fits. Switch to <b>Internal</b> for cm and the sales behind them.</> : <>Each product shows the <b>two sequential sizes</b> this breed falls between, chosen as the best-selling adjacent pair — the <b style={{color:"#BA4511"}}>highlighted</b> one is the most-kept. % is each size's share of kept sales; "both confirmed" means real sales support both. Grey = estimated from body dimensions where sales are thin.</>}</p>
+                    <p style={{fontSize:11,color:"#9699A6",marginTop:14,lineHeight:1.5}}>{fitView==="customer" ? <>Each product shows the <b>one size to order</b> for your dog, based on your answer — a <b>lean/active</b> dog gets the smaller size, a <b>chubby/less-active</b> dog the larger. Switch to <b>Internal</b> to see both sizes in the range and the sales behind them.</> : <>Each product shows the <b>two sequential sizes</b> this breed falls between, chosen as the best-selling adjacent pair — the <b style={{color:"#BA4511"}}>highlighted</b> one is the most-kept. % is each size's share of kept sales; "both confirmed" means real sales support both. Grey = estimated from body dimensions where sales are thin.</>}</p>
                   </div>
                 );
               })()}
