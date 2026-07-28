@@ -219,6 +219,36 @@ const PRODUCT_SPECS = {
     }
   },
 
+  /* ================= SHIRT ================= */
+  "Shirt": {
+    "Printed Shirt For Pets": {
+      verified:true, src:"PD deck for Printed shirts 2024 #3 (a9366eeb)",
+      sizes:["S","M","L","XL","2XL","3XL","4XL","5XL"],
+      back: [26,30,36,40,47,54,64,70],
+      girth:[41,48,53,59,64,74,87,104],
+      neck: [27,31,33,37,41,46,51,66],
+      bottom:[37,44,49,55,59,69,81,98],
+      weightKg:[null,"3.2-4.8","4.8-7.0","7.0-11.0","11-16","22-30","30-38",null],
+      /* back/girth/neck are numerically identical to the Kurta "Dapper Doggo /
+         Royal Elegance" chart, but this is a separate chart image in a separate
+         deck. Kept as its own entry rather than merged. */
+      appliesTo:["PRINTED SHIRT FOR PETS - MULTICOLOR","PRINTED SHIRT FOR PETS - RED"]
+    },
+    "Hearts In Bloom": {
+      verified:true, src:"HUFT X PINKLAY 2025 #17 (25e753c3)",
+      sizes:["S","M","L","XL","2XL","3XL","4XL","5XL"],
+      back: [26,30,36,40,47,54,64,70],
+      girth:[41,48,53,59,64,74,87,104],
+      neck: [27,31,33,37,41,46,51,66],
+      bottom:[37,44,49,55,59,69,81,98],
+      collarHeight:[2.5,2.5,3,3,3,3.5,3.5,3.5],
+      /* Same back/girth/neck as the Printed Shirt chart, but the secondary rows
+         differ: front/back raglan are swapped and cuff opening at 3XL is 17 (not 19).
+         Recorded as observed — not reconciled. */
+      appliesTo:["Hearts In Bloom Shirt For Dogs","Jungle Joyride Shirt For Dogs"]
+    }
+  },
+
   /* ================= BANDANA (accessory — neck only, no back/girth) ================= */
   "Bandana": {
     "Shahi Sherwani Bandana": {
