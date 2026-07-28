@@ -216,6 +216,55 @@ const EASE_DEFAULT = {"Raincoat": 3.5, "T-Shirt": 5.5, "Sweater": -0.5, "Sweatsh
 const LADDER = {"Raincoat":[["XS",26],["S",29],["M",33],["L",38],["XL",43],["2XL",50],["3XL",57],["4XL",66],["5XL",77],["6XL",86]],"T-Shirt":[["XS",26],["S",31],["M",36],["L",40],["XL",45],["2XL",52],["3XL",60],["4XL",70],["5XL",77]],"Sweater":[["XS",20],["S",25],["M",30],["L",35],["XL",40],["2XL",47],["3XL",55],["4XL",65]],"Sweatshirt":[["XS",24],["S",31],["M",36],["L",40],["XL",45],["2XL",52],["3XL",60],["4XL",70],["5XL",77]],"Jacket":[["S",31],["M",36],["L",38],["XL",43],["2XL",50],["3XL",57],["4XL",66],["5XL",77]],"Kurta":[["S",26],["M",30],["L",36],["XL",40],["2XL",47],["3XL",54],["4XL",64],["5XL",70]],"Sherwani":[["S",26],["M",30],["L",36],["XL",40],["2XL",47],["3XL",54],["4XL",64],["5XL",70]],"Shirt":[["S",26],["M",30],["L",36],["XL",40],["2XL",47],["3XL",54],["4XL",64],["5XL",70]],"Collar":[["2XS",20.8],["XS",22.5],["S",31],["M",42],["L",56.5]],"Collar & Leash":[["S",27.5],["M",41.5],["L",55.5]],"Harness":[["XS",45],["S",54],["M",60.5],["L",73],["XL",78],["2XL",83]]};
 const EASE_DIM = {'Raincoat':'body','T-Shirt':'body','Sweater':'body','Sweatshirt':'body','Jacket':'body','Kurta':'body','Sherwani':'body','Shirt':'body','Collar':'neck','Collar & Leash':'neck','Harness':'chest'};
 
+/* ---- What a size actually measures, per product type ----------------------
+   Odoo publishes only "Length" for all body apparel. The raincoat spec decks
+   are the one source with back + girth + neck per size. So girth and neck for
+   the other apparel are DERIVED from the dog's own measurement, using ratios
+   calibrated on the 13 sales-confirmed raincoat breeds:
+     garment girth = 1.25 x dog chest   (median across breeds, range 1.16–1.48)
+     garment neck  = 1.24 x dog neck    (median across breeds, range 1.19–1.57)
+   Anything derived is labelled "est" in the UI so the data gap stays visible. */
+const DIMS = {'Raincoat':['back','girth','neck'],'T-Shirt':['back','girth','neck'],'Sweater':['back','girth','neck'],'Sweatshirt':['back','girth','neck'],'Jacket':['back','girth','neck'],'Kurta':['back','girth','neck'],'Sherwani':['back','girth','neck'],'Shirt':['back','girth','neck'],'Collar':['neck'],'Collar & Leash':['neck'],'Harness':['girth','neck']};
+const RATIO_DEFAULT = {girth:1.25, neck:1.24};
+const DIM_DOG = {back:'body', girth:'chest', neck:'neck'};
+const DIM_OF_EASE = {body:'back', neck:'neck', chest:'girth'};
+
+/* Returns [{d, cm, src}] for one product at one size. src: "spec" = published
+   in the catalog/deck, "est" = derived from dog dimension + ease/ratio. */
+function garmentDims(p, size, b, easeAdj, ratioAdj){
+  if(!b) return [];
+  const dims = DIMS[p] || ['back'];
+  const primary = DIM_OF_EASE[EASE_DIM[p]];
+  const lad = (LADDER[p]||[]).find(x=>x[0]===size);
+  const dogOf = d => d==='back' ? ((b.care&&b.care.bodyLen)||b.height) : d==='girth' ? b.chest : b.neck;
+  return dims.map(d=>{
+    if(d===primary && lad) return {d, cm:lad[1], src:'spec'};
+    const dd = dogOf(d); if(!dd) return null;
+    const mid = (dd[0]+dd[1])/2;
+    if(d==='back'){
+      const e = (easeAdj&&easeAdj[p]!=null) ? Number(easeAdj[p]) : EASE_DEFAULT[p];
+      return {d, cm: mid + (e||0), src:'est'};
+    }
+    const r = (ratioAdj&&ratioAdj[p]&&ratioAdj[p][d]!=null) ? Number(ratioAdj[p][d]) : RATIO_DEFAULT[d];
+    return {d, cm: mid * (r||1), src:'est'};
+  }).filter(Boolean);
+}
+
+/* Raincoats: every model has its own chart, so the right size differs by model.
+   Picks the best size per model against the dog's back + ease. */
+function raincoatPerModel(b, easeAdj){
+  if(!b || typeof RAINCOAT_MODELS==='undefined') return [];
+  const bl = (b.care&&b.care.bodyLen) || b.height; if(!bl) return [];
+  const e = (easeAdj&&easeAdj['Raincoat']!=null) ? Number(easeAdj['Raincoat']) : EASE_DEFAULT['Raincoat'];
+  const target = (bl[0]+bl[1])/2 + (e||0);
+  return Object.keys(RAINCOAT_MODELS).map(name=>{
+    const m = RAINCOAT_MODELS[name];
+    let bi=0; m.back.forEach((v,i)=>{ if(Math.abs(v-target) < Math.abs(m.back[bi]-target)) bi=i; });
+    return {name, size:m.sizes[bi], back:m.back[bi], girth:m.girth[bi], neck:m.neck[bi],
+            max: bi===m.sizes.length-1 && m.back[bi] < target, min: bi===0 && m.back[bi] > target};
+  });
+}
+
 /* ---------- fit maths ---------- */
 function overlapPct(breed, prod){ const lo=Math.max(breed[0],prod[0]), hi=Math.min(breed[1],prod[1]); return hi<=lo?0:(hi-lo)/(breed[1]-breed[0]); }
 function gradeOf(p){ return p>=0.9?"full":p>=0.55?"good":p>0?"partial":"none"; }
@@ -288,6 +337,43 @@ function SalesBadge({b}){
 }
 function Chip({text,tip,tone}){ const t = tone==="warn"?{bg:"#FEF1E5",fg:"#BA4511",bd:"#FFBE92"}:{bg:"#F0F1F6",fg:"#565A6E",bd:"#C3C6D4"};
   return <span title={tip} style={{fontSize:10.5,padding:"2px 7px",borderRadius:999,background:t.bg,color:t.fg,border:`1px solid ${t.bd}`,whiteSpace:"nowrap"}}>{text}</span>; }
+function DimRows({rows,size,showSrc}){
+  if(!rows||!rows.length) return null;
+  return (
+    <div style={{marginTop:7,paddingTop:6,borderTop:"1px dashed #D9DCE6"}}>
+      <div style={{...MONO,fontSize:8.5,color:"#9699A6",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3}}>what {size} measures</div>
+      {rows.map(r=>(
+        <div key={r.d} style={{display:"flex",alignItems:"baseline",gap:6,fontSize:10.5,...MONO,lineHeight:1.55}}>
+          <span style={{color:"#9699A6",width:38}}>{r.d}</span>
+          <span style={{fontWeight:700,color:r.src==="spec"?"#323338":"#676879"}}>{Math.round(r.cm)} cm</span>
+          {showSrc && <span style={{fontSize:8,padding:"0 4px",borderRadius:4,background:r.src==="spec"?"#E5F9F0":"#F0F1F6",color:r.src==="spec"?"#00854D":"#9699A6"}}>{r.src}</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ModelRows({models,showSrc}){
+  if(!models||!models.length) return null;
+  return (
+    <div style={{marginTop:7,paddingTop:6,borderTop:"1px dashed #D9DCE6"}}>
+      <div style={{...MONO,fontSize:8.5,color:"#9699A6",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>size per model — back · girth · neck (from spec decks)</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(210px,1fr))",gap:"3px 14px"}}>
+        {models.map(m=>(
+          <div key={m.name} style={{display:"flex",alignItems:"baseline",gap:7,fontSize:11,...MONO}}>
+            <span style={{color:"#676879",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.name}</span>
+            <span style={{fontWeight:700,color:"#BA4511",minWidth:26,textAlign:"right"}}>{m.size}</span>
+            <span style={{color:"#323338",minWidth:78,textAlign:"right"}}>{m.back} · {m.girth} · {m.neck}</span>
+            {m.max && <span title="largest size made" style={{color:"#BA4511",fontSize:9}}>⚠</span>}
+            {m.min && <span title="smallest size made" style={{color:"#BA4511",fontSize:9}}>⚠</span>}
+          </div>
+        ))}
+      </div>
+      {showSrc && <div style={{fontSize:9,color:"#9699A6",marginTop:5,lineHeight:1.4}}>Each model has its own chart — the right size is not the same across models. All three dimensions are published spec, not estimated.</div>}
+    </div>
+  );
+}
+
 function Meter({label,val,color}){ return (
   <div style={{flex:1,minWidth:86}}>
     <div style={{fontSize:10,color:"#9699A6",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:3}}>{label} <b style={{color:"#323338"}}>{val}/5</b></div>
@@ -1292,6 +1378,7 @@ function App({onLogout}){
   const [fitView,setFitView]=useState("customer");
   const [fitBody,setFitBody]=useState("");
   const [easeAdj,setEaseAdj]=useState({});
+  const [ratioAdj,setRatioAdj]=useState({});
   const [drillSub,setDrillSub]=useState("Raincoat");
   const [drillProduct,setDrillProduct]=useState("");
   const [fitProductName,setFitProductName]=useState("");
@@ -1557,13 +1644,17 @@ function App({onLogout}){
                       </div>
                     ) : (<>
                       {fitView==="customer" && <div style={{fontSize:12,color:"#676879",marginBottom:10}}>Sizes for a <b>{fitBody==="down"?"lean / very active":fitBody==="up"?"heavier / less-active":"average-build"}</b> {fitBreed} — <span onClick={()=>setFitBody("")} style={{color:"#BA4511",cursor:"pointer",textDecoration:"underline"}}>change answer</span></div>}
-                      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))",gap:8}}>
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(190px, 1fr))",gap:8}}>
                         {REC_PRODUCTS.map(p=>{const rc=rec[p]; const isSales=rc&&rc.src==="sales"; const internal=fitView==="internal";
                           const pair=rc?[...new Set(rc.pair)]:["—"];
                           // Customer sees ONE size — the answer resolves the pair: lean->smaller, chubby->larger, average->best.
                           const pick = !rc?"—":(fitBody==="down"?pair[0]:fitBody==="up"?pair[pair.length-1]:rc.base);
+                          const dimSize = internal ? (rc?rc.base:null) : (pick!=="—"?pick:null);
+                          const drows = (b&&dimSize) ? garmentDims(p, dimSize, b, easeAdj, ratioAdj) : [];
+                          const models = (p==="Raincoat" && b) ? raincoatPerModel(b, easeAdj) : [];
+                          const wide = p==="Raincoat" && models.length>0;
                           return (
-                          <div key={p} style={{background:"#F5F6F8",borderRadius:8,padding:"10px 12px",borderTop:isSales?"3px solid #00A25B":"3px solid #E6E9EF"}}>
+                          <div key={p} style={{background:"#F5F6F8",borderRadius:8,padding:"10px 12px",borderTop:isSales?"3px solid #00A25B":"3px solid #E6E9EF",gridColumn:wide?"1 / -1":"auto"}}>
                             <div style={{...MONO,fontSize:10,color:"#9699A6",textTransform:"uppercase",letterSpacing:"0.05em"}}>{p}</div>
                             {internal ? <>
                               <div style={{display:"flex",gap:5,marginTop:5}}>
@@ -1579,10 +1670,12 @@ function App({onLogout}){
                                 : <div style={{fontSize:9.5,color:"#9699A6",marginTop:3}}>fit-estimated (thin sales)</div>}
                               {rc&&rc.note==="max" && <div style={{fontSize:9,color:"#BA4511",marginTop:2}}>⚠ largest size made — may run small for this breed</div>}
                               {rc&&rc.note==="min" && <div style={{fontSize:9,color:"#BA4511",marginTop:2}}>⚠ smallest size made — may run big for this breed</div>}
+                              {wide ? <ModelRows models={models} showSrc={true}/> : <DimRows rows={drows} size={dimSize} showSrc={true}/>}
                             </> : (<>
                               <div style={{fontWeight:700,fontSize:26,color:"#323338",marginTop:4,lineHeight:1}}>{pick}</div>
                               {rc&&rc.note==="max" && <div style={{fontSize:9,color:"#BA4511",marginTop:2}}>largest size — may run small</div>}
                               {rc&&rc.note==="min" && <div style={{fontSize:9,color:"#BA4511",marginTop:2}}>smallest size — may run big</div>}
+                              {wide ? <ModelRows models={models} showSrc={false}/> : <DimRows rows={drows} size={pick} showSrc={false}/>}
                             </>)}
                           </div>
                         );})}
@@ -1606,24 +1699,36 @@ function App({onLogout}){
                 <section style={card}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
                     <h3 style={{margin:0,fontSize:14.5}}>Ease tuner — {fitBreed}</h3>
-                    {anyAdj && <button onClick={()=>setEaseAdj({})} style={{border:"1px solid #C3C6D4",background:"#fff",borderRadius:7,padding:"5px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:600,color:"#565A6E"}}>Reset to calibrated</button>}
+                    {(anyAdj||Object.keys(ratioAdj).length>0) && <button onClick={()=>{setEaseAdj({});setRatioAdj({});}} style={{border:"1px solid #C3C6D4",background:"#fff",borderRadius:7,padding:"5px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:600,color:"#565A6E"}}>Reset to calibrated</button>}
                   </div>
-                  <p style={{fontSize:12,color:"#676879",margin:"4px 0 10px"}}>Ease = how much bigger the garment runs than the dog. Change it to see the target product dimension (dog + ease) and the size it gives. Default is calibrated from real sales.</p>
+                  <p style={{fontSize:12,color:"#676879",margin:"4px 0 10px"}}>Ease = how much bigger the garment runs than the dog. Change it to see the target product dimension (dog + ease) and the size it gives. Default is calibrated from real sales. <b>Girth ×</b> and <b>Neck ×</b> are the ratios used to estimate those dimensions where the catalog only publishes length — calibrated at {RATIO_DEFAULT.girth} and {RATIO_DEFAULT.neck} on the 13 sales-confirmed raincoat breeds.</p>
                   <div style={{overflowX:"auto"}}>
-                    <table style={{borderCollapse:"collapse",width:"100%",minWidth:520}}><thead><tr><th style={th}>Product</th><th style={th}>Dog</th><th style={th}>Ease (cm)</th><th style={th}>Target garment</th><th style={th}>Size</th></tr></thead><tbody>
+                    <table style={{borderCollapse:"collapse",width:"100%",minWidth:700}}><thead><tr><th style={th}>Product</th><th style={th}>Dog</th><th style={th}>Ease (cm)</th><th style={th}>Target garment</th><th style={th}>Size</th><th style={th}>Girth ×</th><th style={th}>Neck ×</th></tr></thead><tbody>
                       {REC_PRODUCTS.map(p=>{const dim=EASE_DIM[p]; const dd=dogdim(dim); const mid=(dd[0]+dd[1])/2;
                         const e=easeAdj[p]!=null?easeAdj[p]:EASE_DEFAULT[p]; const target=mid+(Number(e)||0); const nr=nearest(LADDER[p],target);
                         const changed=easeAdj[p]!=null && Number(easeAdj[p])!==EASE_DEFAULT[p];
+                        const dimsOf=DIMS[p]||[]; const primary=DIM_OF_EASE[EASE_DIM[p]];
+                        const ratioCell=(d)=>{
+                          if(!dimsOf.includes(d) || d===primary) return <td style={{...td,color:"#C3C6D4"}}>—</td>;
+                          const cur=(ratioAdj[p]&&ratioAdj[p][d]!=null)?ratioAdj[p][d]:RATIO_DEFAULT[d];
+                          const dogR=d==="girth"?b.chest:b.neck; const out=((dogR[0]+dogR[1])/2)*(Number(cur)||1);
+                          return (<td style={td}>
+                            <input type="number" step="0.01" value={cur} onChange={ev=>setRatioAdj({...ratioAdj,[p]:{...(ratioAdj[p]||{}),[d]:ev.target.value}})} style={{width:56,padding:"4px 6px",borderRadius:6,border:"1.5px solid #C3C6D4",fontSize:12.5,fontFamily:"inherit"}}/>
+                            <span style={{color:"#9699A6",fontSize:10,marginLeft:5}}>{Math.round(out)} cm</span>
+                          </td>);
+                        };
                         return (<tr key={p} style={{background:changed?"#FEF7ED":"transparent"}}>
                           <td style={{...td,fontWeight:600}}>{p}</td>
                           <td style={td}>{dd[0]}–{dd[1]} cm {DLBL[dim]}</td>
                           <td style={td}><input type="number" step="0.5" value={e} onChange={ev=>setEaseAdj({...easeAdj,[p]:ev.target.value})} style={{width:58,padding:"4px 6px",borderRadius:6,border:"1.5px solid #C3C6D4",fontSize:12.5,fontFamily:"inherit"}}/> {changed && <span style={{fontSize:9,color:"#9699A6"}}>(def {EASE_DEFAULT[p]})</span>}</td>
                           <td style={{...td,color:"#BA4511",fontWeight:600}}>{target.toFixed(1)} cm</td>
                           <td style={td}>{nr?`${nr.s}`:"—"} {nr && <span style={{color:"#9699A6",fontSize:10}}>({nr.cm} cm)</span>}</td>
+                          {ratioCell("girth")}
+                          {ratioCell("neck")}
                         </tr>);})}
                     </tbody></table>
                   </div>
-                  <p style={{fontSize:10.5,color:"#9699A6",marginTop:8,lineHeight:1.5}}>"Target garment" = the dog's own measurement (midpoint) + ease. "Size" is the closest product size to that target. This is a what-if preview — it doesn't overwrite the sales-based recommendation above.</p>
+                  <p style={{fontSize:10.5,color:"#9699A6",marginTop:8,lineHeight:1.5}}>"Target garment" = the dog's own measurement (midpoint) + ease. "Size" is the closest product size to that target. Girth × and Neck × multiply the dog's chest and neck to estimate the dimensions the catalog doesn't publish — a dash means that dimension is the product's own published measurement and needs no estimate. This is a what-if preview — it doesn't overwrite the sales-based recommendation above.</p>
                 </section>
               );
             })()}
