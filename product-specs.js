@@ -229,6 +229,84 @@ const PRODUCT_SPECS = {
       girth:[40,46,50,56,62,76,86,94],
       neck: [31,38,42,45,50,52,56,64],
       appliesTo:["Jaipuri Gul Block-Printed Kurta for Dogs","Jaipuri Phool Block-Printed Kurta for Dogs"]
+    },
+    /* ---- Ladder A: back 26–70. Shares girth+neck with Ladder B below. ---- */
+    "Rang Riwaz": {
+      verified:true, src:"Dil se Desi Collection 2025 #8 (75f41038)",
+      sizes:["S","M","L","XL","2XL","3XL","4XL","5XL"],
+      back: [26,30,36,40,47,54,64,70],
+      girth:[41,48,53,59,64,74,87,104],
+      neck: [27,31,33,37,41,46,51,66],
+      bottom:[37,44,49,55,59,69,81,98],
+      weightKg:[null,"3.2-4.8","4.8-7.0","7.0-11.0","11-16","22-30","30-38",null],
+      backLadder:"A",
+      appliesTo:["Rang Riwaz Kurta For Dogs"]
+    },
+    "EthniPaw Ikat": {
+      verified:true, src:"Rakhi Collection 2025 #4 (ca021000)",
+      sizes:["S","M","L","XL","2XL","3XL","4XL","5XL"],
+      back: [26,30,36,40,47,54,64,70],
+      girth:[41,48,53,59,64,74,87,104],
+      neck: [27,31,33,37,41,46,51,66],
+      bottom:[37,44,49,55,59,69,81,98],
+      weightKg:[null,"3.2-4.8","4.8-7.0","7.0-11.0","11-16","22-30","30-38",null],
+      backLadder:"A",
+      appliesTo:["EthniPaw Ikat Kurta For Dogs","Pawdhani Leheriya Kurta For Dogs"]
+    },
+    "Floral Paws": {
+      verified:true, src:"HUFT SPRING SUMMER DECK 2026 #199 (78108860)",
+      sizes:["S","M","L","XL","2XL","3XL","4XL","5XL"],
+      back: [26,30,36,40,47,54,64,70],
+      girth:[41,48,53,59,64,74,87,104],
+      neck: [27,31,33,37,41,46,51,66],
+      bottom:[37,44,49,55,59,69,81,98],
+      weightKg:[null,"3.2-4.8","4.8-7.0","7.0-11.0","11-16","22-30","30-38",null],
+      backLadder:"A",
+      /* raglan rows are labelled in the opposite order to Rang Riwaz and the front
+         raglan values differ (13,14.5,18,20,23,25,28,32). Recorded, not reconciled. */
+      appliesTo:["Floral Paws Kurta For Dogs","Pawbloom Kurta For Dogs","Pawdhani Lehriya Kurta For Dogs"]
+    },
+    "RAKHI Dog Kurta": {
+      verified:true, src:"Festive Collection_Rakhi 2024 #36 (46da97f4)",
+      sizes:["S","M","L","XL","2XL","3XL","4XL","5XL"],
+      back: [26,30,36,40,47,54,64,70],
+      girth:[41,48,53,59,64,74,87,104],
+      neck: [27,31,33,37,41,46,51,66],
+      bottom:[37,44,49,55,59,69,81,98],
+      weightKg:[null,"3.2-4.8","4.8-7.0","7.0-11.0","11-16","22-30","30-38",null],
+      backLadder:"A",
+      breedRec:{M:"Maltese, Yorkshire, Pekingese, Chihuahua", L:"Shih Tzu, Pekingese, Pomeranian",
+                XL:"Poodle, Shih Tzu, Pug, Schnauzer", "2XL":"Cocker Spaniel, Tibetan Terrier",
+                "3XL":"Cocker Spaniel, Laufhunds", "4XL":"Shar Pei, Boxer",
+                "5XL":"Labrador Retriever, Husky, Spinone"},
+      appliesTo:["RAKHI Dog Kurta"]
+    },
+    /* ---- Ladder B: back 31–77 at S–5XL. SAME girth + neck as Ladder A. ---- */
+    "Royal Elephant Brocade": {
+      verified:true, src:"Dil se Desi Collection 2025 #16 (b4cac89d)",
+      sizes:["S","M","L","XL","2XL","3XL","4XL","5XL"],
+      back: [31,36,40,45,52,60,70,77],
+      girth:[41,48,53,59,64,74,87,104],
+      neck: [27,31,33,37,41,46,51,66],
+      bottom:[35.5,41,45,50.5,55,65,77,94],
+      weightKg:[null,"3.2-4.8","4.8-7.0","7.0-11.0","11-16","22-30","30-38",null],
+      backLadder:"B",
+      /* Same deck as Rang Riwaz (Ladder A) but a 5 cm longer back at every size,
+         while girth and neck are identical. A dog sized by chest gets the same
+         letter on both, but a 5–7 cm different garment length. */
+      appliesTo:["Royal Elephant Brocade Kurta For Dogs"]
+    },
+    "Shahi Paws": {
+      verified:true, src:"Dil se Desi Collection 2025 #12 (068ecbec)",
+      sizes:["XS","S","M","L","XL","2XL","3XL","4XL","5XL"],
+      back: [26,31,36,40,45,52,60,70,77],
+      girth:[35,41,48,53,59,64,74,87,104],
+      neck: [23,27,31,33,36,41,46,56,66],
+      bottom:[30.5,35.5,41,45,50.5,55,65,77,94],
+      backLadder:"B",
+      /* Ladder B with an extra XS prepended. Its S onward matches Royal Elephant
+         exactly on all three dimensions. */
+      appliesTo:["Shahi Paws Kurta For Dogs"]
     }
   },
 
@@ -313,7 +391,7 @@ const SPEC_COVERAGE = {
   "Raincoat":   {read:8, total:8},   /* COMPLETE */
   "Sweater":    {read:6, total:6},   /* COMPLETE */
   "T-Shirt":    {read:1, total:14},
-  "Kurta":      {read:2, total:9},   /* +1: a1f78397 was filed under Sherwani by the classifier */
+  "Kurta":      {read:8, total:8},   /* COMPLETE — 9th "chart" (6318c698) was a product photo */
   "Sherwani":   {read:2, total:2},   /* COMPLETE — 3rd chart was a bandana, moved out */
   "Bandana":    {read:1, total:1},   /* accessory, neck only — not part of the apparel matcher */
   "Sweatshirt": {read:0, total:9},
