@@ -1366,24 +1366,21 @@ function App({onLogout}){
   };
   const applyProduct=(name)=>{
     setFitProductName(name);
-    setFitVariantSize("");
-    if(!name){ setFitNote(""); setNoDims(false); setFitExtra([]); return; }
+    if(!name){ setFitVariantSize(""); setFitNote(""); setNoDims(false); setFitExtra([]); return; }
     const p=fullCatalog.find(x=>x.name===name);
-    if(!p){ setFitNote(""); setNoDims(false); setFitExtra([]); return; }
-    const label=`across ${p.variants.length} size${p.variants.length>1?"s":""} of "${name}"`;
-    applyDimsFromAgg(aggregateDims(p), label, name);
+    if(!p){ setFitVariantSize(""); setFitNote(""); setNoDims(false); setFitExtra([]); return; }
+    // Always default to a specific size — never a combined all-sizes range (that span is not a real product and gives wrong fit info).
+    const v=p.variants[0];
+    if(v){ setFitVariantSize(v.size); applyDimsFromAgg(aggregateDims(p,v), `for size ${v.size} of "${name}"`, name); }
+    else { setFitVariantSize(""); applyDimsFromAgg(aggregateDims(p), `for "${name}"`, name); }
   };
   const applySize=(sizeLabel)=>{
-    setFitVariantSize(sizeLabel);
     const p=fullCatalog.find(x=>x.name===fitProductName);
     if(!p) return;
-    if(!sizeLabel){
-      applyDimsFromAgg(aggregateDims(p), `across ${p.variants.length} size${p.variants.length>1?"s":""} of "${fitProductName}"`, fitProductName);
-      return;
-    }
-    const v=p.variants.find(x=>x.size===sizeLabel);
+    const v=p.variants.find(x=>x.size===sizeLabel) || p.variants[0];
     if(!v) return;
-    applyDimsFromAgg(aggregateDims(p,v), `for size ${sizeLabel} of "${fitProductName}"`, fitProductName);
+    setFitVariantSize(v.size);
+    applyDimsFromAgg(aggregateDims(p,v), `for size ${v.size} of "${fitProductName}"`, fitProductName);
   };
   const manualEdit=(setter)=>(v)=>{ setter(v); setNoDims(false); };
 
@@ -1713,7 +1710,6 @@ function App({onLogout}){
                 if(!p || sizes.length<2) return null;
                 return (
                   <select value={fitVariantSize} onChange={e=>applySize(e.target.value)} style={{padding:"9px 10px",borderRadius:8,border:"1.5px solid #C3C6D4",fontSize:13,fontFamily:"inherit",background:"#fff"}}>
-                    <option value="">All sizes (combined range)</option>
                     {sizes.map(s=><option key={s} value={s}>{s}</option>)}
                   </select>
                 );
@@ -1725,7 +1721,7 @@ function App({onLogout}){
               return (
                 <div style={{display:"flex",gap:6,flexWrap:"wrap",margin:"0 0 10px"}}>
                   {p.variants.map(v=>(
-                    <button key={v.size} onClick={()=>applySize(v.size===fitVariantSize?"":v.size)}
+                    <button key={v.size} onClick={()=>applySize(v.size)}
                       style={{padding:"4px 9px",borderRadius:999,fontSize:11.5,fontFamily:"inherit",cursor:"pointer",
                         border:v.size===fitVariantSize?"1.5px solid #0073EA":"1.5px solid #DCDFEA",
                         background:v.size===fitVariantSize?"#EAF1FF":"#fff",
