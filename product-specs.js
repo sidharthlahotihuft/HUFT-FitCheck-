@@ -338,6 +338,113 @@ const PRODUCT_SPECS = {
     }
   },
 
+  /* ================= SWEATSHIRT =================
+     All eight run the same body block as the T-shirt. Two sub-variants differ only
+     at two cells: girth XL and neck 5XL.
+       variant "a": girth XL 54.5, neck 5XL 72
+       variant "b": girth XL 55,   neck 5XL 68
+     Four of these are customer-facing SIZE GUIDES with dog silhouettes rather than
+     tech packs — see chartType. Their numbers are identical to the tech-pack numbers,
+     which is flagged in SPEC_NOTES as an open question. */
+  "Sweatshirt": {
+    "Good Doggo": {
+      verified:true, src:"HUFT winter 2024 #4 (b4a2b7e1)", chartType:"techpack", variant:"a",
+      sizes:["XS","S","M","L","XL","2XL","3XL","4XL","5XL"],
+      back: [26,31,36,40,45,52,60,70,77],
+      girth:[33.5,38.5,45,49,54.5,60,70,83,100],
+      neck: [23,27,31,33,36,41,48,56,72],
+      bottom:[30.5,35.5,41,45,50.5,54,62,75,90],
+      weightKg:["0.8-2","2-3.2","3.2-4.8","4.8-7.0","7.0-11.0","11-16","22-30","30-38",null],
+      /* header of this chart reads "Dog T-shirt" — same block as the tee */
+      appliesTo:["GOOD DOGGO PET SWEATSHIRT","SPOILT SWEET COLOUR BLOCK HOODIE PET SWEATSHIRT",
+                 "WAG MORE WORRY LESS COLOUR BLOCK HOODIE PET SWEATSHIRT"]
+    },
+    "AW23 Polka Dot": {
+      verified:true, src:"AUTUMN_WINTER _23 #93 (5d869acd)", chartType:"techpack", variant:"a",
+      sizes:["S","M","L","XL","2XL","3XL","4XL","5XL"],
+      back: [31,36,40,45,52,60,70,77],
+      girth:[38.5,45,49,54.5,60,70,83,100],
+      neck: [27,31,33,36,41,48,56,72],
+      bottom:[35.5,41,45,50.5,54,62,75,90],
+      appliesTo:["AW23 Polka Dot Sweatshirt For Pets - Navy","AW23 Polka Dot Sweatshirt For Pets - Red"]
+    },
+    "AW23 Colour Block Hoodie": {
+      verified:true, src:"AUTUMN_WINTER _23 #99 (85bd5483)", chartType:"techpack", variant:"b",
+      sizes:["XS","S","M","L","XL","2XL","3XL","4XL","5XL"],
+      back: [26,31,36,40,45,52,60,70,77],
+      girth:[33.5,38.5,45,49,55,60,70,83,100],
+      neck: [23,27,31,33,36,41,48,56,68],
+      bottom:[30.5,35.5,41,45,50.5,55,65,77,94],
+      appliesTo:["AW23 Colour Block Hoodie Pet Sweatshirt - Black",
+                 "AW23 Colour Block Hoodie Pet Sweatshirt - Mustard"]
+    },
+    "Happy Teddy": {
+      verified:true, src:"Winter 2025 - PRODUCT DECK #3 (892a5d40)", chartType:"size-guide", variant:"a",
+      sizes:["S","M","L","XL","2XL","3XL","4XL","5XL"],
+      back: [31,36,40,45,52,60,70,77],
+      girth:[38.5,45,49,54.5,60,70,83,100],
+      neck: [27,31,33,36,41,48,56,72],
+      front:[24,27,29,32,35,39,44,48],
+      appliesTo:["Happy Teddy Sweatshirt For Small Dogs","Sunny Bear Sweatshirt For Small Dogs"]
+    },
+    "Pup Parade": {
+      verified:true, src:"Winter 2025 - PRODUCT DECK #5 (80e21b82)", chartType:"size-guide", variant:"a",
+      sizes:["S","M","L","XL","2XL","3XL","4XL","5XL"],
+      back: [31,36,40,45,52,60,70,77],
+      girth:[38.5,45,49,54.5,60,70,83,100],
+      neck: [27,31,33,36,41,48,56,72],
+      front:[24,27,29,32,35,39,44,48],
+      /* labelled "for Big dogs" but the chart is identical to Happy Teddy,
+         which is labelled "For Small Dogs". Recorded as printed. */
+      appliesTo:["Pup Parade Sweatshirt for Big dogs"]
+    },
+    "Cutest Cuddle Buddy": {
+      verified:true, src:"Winter 2025 - PRODUCT DECK #7 (8a31dd84)", chartType:"size-guide", variant:"a",
+      sizes:["S","M","L","XL","2XL","3XL","4XL","5XL"],
+      back: [31,36,40,45,52,60,70,77],
+      girth:[38.5,45,49,54.5,60,70,83,100],
+      neck: [27,31,33,36,41,48,56,72],
+      front:[24,27,29,32,35,39,44,48],
+      appliesTo:["Cutest Cuddle Buddy Sweatshirt For Big Dogs"]
+    },
+    "Flower Power": {
+      verified:true, src:"Winter 2025 - PRODUCT DECK #9 (0e81b55c)", chartType:"size-guide", variant:"a",
+      sizes:["S","M","L","XL","2XL","3XL","4XL","5XL"],
+      back: [31,36,40,45,52,60,70,77],
+      girth:[38.5,45,49,54.5,60,70,83,100],
+      neck: [27,31,33,36,41,48,56,72],
+      front:[24,27,29,32,35,39,44,48],
+      appliesTo:["Flower Power Sweatshirt For Dogs","Woof Squad Sweatshirt For Dogs"]
+    },
+    "Cherry Sweet": {
+      verified:true, src:"Winter 2025 - PRODUCT DECK #11 (1b70f089)", chartType:"size-guide", variant:"b",
+      sizes:["S","M","L","XL","2XL","3XL","4XL","5XL"],
+      back: [31,36,40,45,52,60,70,77],
+      girth:[38.5,45,49,55,60,70,83,100],
+      neck: [27,31,33,36,41,48,56,68],
+      front:[22,27,29,32,35,39,44,48],
+      /* The M and L size labels are partly covered by a UI arrow overlay in the deck
+         image. The row VALUES are fully legible; the two labels are inferred from the
+         S/12 ... XL/18 sequence. Worth a second pair of eyes on the original slide. */
+      labelsObscured:["M","L"],
+      appliesTo:["Cherry Sweet Sweatshirt with hood For Big Dogs"]
+    }
+  },
+
+  /* ================= EAR MUFFS (accessory — no back/girth/neck) ================= */
+  "Ear Muffs": {
+    "Noise-Out Hoodies": {
+      verified:true, src:"Festive Collection_Diwali 2024 #3 (26c9c513)",
+      sizes:["M","L"],
+      lengthIn:[5,7],
+      widthIn:[5,7],
+      breedSize:["mini-medium","medium-large"],
+      /* Named "Hoodies" but these are ear muffs. No body dimensions.
+         Was wrongly counted as a sweatshirt chart. */
+      appliesTo:["Noise-Out Hoodies - Doggie Ear Muffs"]
+    }
+  },
+
   /* ================= SHIRT ================= */
   "Shirt": {
     "Printed Shirt For Pets": {
@@ -394,7 +501,8 @@ const SPEC_COVERAGE = {
   "Kurta":      {read:8, total:8},   /* COMPLETE — 9th "chart" (6318c698) was a product photo */
   "Sherwani":   {read:2, total:2},   /* COMPLETE — 3rd chart was a bandana, moved out */
   "Bandana":    {read:1, total:1},   /* accessory, neck only — not part of the apparel matcher */
-  "Sweatshirt": {read:0, total:9},
+  "Sweatshirt": {read:8, total:8},   /* COMPLETE — 9th chart (26c9c513) was ear muffs */
+  "Ear Muffs":  {read:1, total:1},   /* accessory, not body apparel */
   "Jacket":     {read:0, total:10},
   "Dress":      {read:0, total:10},
   "Shirt":      {read:2, total:2}    /* COMPLETE */
