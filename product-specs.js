@@ -278,5 +278,5 @@ const SPEC_COVERAGE = {
   "Sweatshirt": {read:0, total:9},
   "Jacket":     {read:0, total:10},
   "Dress":      {read:0, total:10},
-  "Shirt":      {read:0, total:2}
+  "Shirt":      {read:2, total:2}    /* COMPLETE */
 };
