@@ -119,6 +119,45 @@ const PRODUCT_SPECS = {
                 "3XL":"Shar Pei, Boxer", "4XL":"Labrador Retriever, Husky, Spinone"},
       appliesTo:["Merry Bright Dog Sweater","My Li'l Rudolph Dog Sweater","Snow Dashers Dog Sweater",
                  "Snug Stripes Blue Red Dog Sweater","Snug Stripes Turquoise Orange Dog Sweater"]
+    },
+    "Berry Merry": {
+      verified:true, src:"Winter 2025 - PRODUCT DECK #30 (ddd8da13)",
+      sizes:["XS","S","M","L","XL","2XL","3XL","4XL"],
+      back: [20,25,30,35,40,47,55,65],
+      girth:[30.5,35.5,42,48,54,60,70,83],
+      neck: [20,24,28,32,36,41,48,56],
+      bottom:[26.5,33,38,44,50,55,64,77],
+      appliesTo:["Berry Merry Sweater For Dogs","Frosty Flowers Sweater For Small Dogs",
+                 "Winter Spice Sweater For Dogs"]
+    },
+    "TLC Sunny Days": {
+      verified:true, src:"Winter 25-TLC #3 (b659a918)",
+      sizes:["XS","S","M","L","XL","2XL","3XL","4XL"],
+      back: [20,25,30,35,40,47,55,65],
+      girth:[30.5,35.5,42,48,54,60,70,83],
+      neck: [20,24,28,32,36,41,48,56],
+      bottom:[26.5,33,38,44,50,55,64,77],
+      appliesTo:["TLC Sunny Days Sweater For Dogs","TLC Sunset Glow Sweater For Dogs"]
+    },
+    "TLC Cherry Cola": {
+      verified:true, src:"Winter 25-TLC #5 (aeeaddc3)",
+      sizes:["XS","S","M","L","XL","2XL","3XL","4XL"],
+      back: [20,25,30,35,40,47,55,65],
+      girth:[34.5,39.5,46,52,58,64,74,87],
+      neck: [20,24,28,32,36,41,48,56],
+      bottom:[31,36,42,48,54,59,68,81],
+      appliesTo:["TLC Cherry Cola Sweater For Dogs","TLC Pumpkin Patch Sweater For Dogs"]
+    },
+    "AW23 Cable Knit": {
+      verified:true, src:"AUTUMN_WINTER _23 #106 (3cad69a3)",
+      sizes:["XS","S","M","L","XL","2XL","3XL","4XL"],
+      back: [20,25,30,35,40,47,55,65],
+      girth:[30.5,35.5,42,48,54,60,70,83],
+      neck: [20,24,28,32,36,41,48,56],
+      /* this chart has no BOTTOM row */
+      appliesTo:["AW23 Cable Knit Sweater For Dogs","AW23 Merry Moose Sweater For Dogs",
+                 "AW23 Radiant Rudolph Sweater For Dogs","AW23 Snowy Sweethearts Sweater For Dogs",
+                 "AW23 Winter Miracle Sweater For Dogs"]
     }
   },
 
@@ -155,7 +194,7 @@ const PRODUCT_SPECS = {
    read = transcribed AND re-verified against the source image. */
 const SPEC_COVERAGE = {
   "Raincoat":   {read:5, total:8},
-  "Sweater":    {read:2, total:6},
+  "Sweater":    {read:6, total:6},   /* COMPLETE */
   "T-Shirt":    {read:1, total:14},
   "Kurta":      {read:1, total:8},
   "Sherwani":   {read:1, total:3},
