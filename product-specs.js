@@ -69,6 +69,47 @@ const PRODUCT_SPECS = {
          Max row is (71,74,79,82,87,91,96,110,120). Left out pending confirmation. */
       sourceIssue:"girth min row exceeds middle-stage row at S–2XL",
       appliesTo:["RainTail Wrap Raincoat For Dogs"]
+    },
+    "Magical Mist (SS26 deck)": {
+      verified:true, src:"HUFT SPRING SUMMER DECK 2026 #64 (6d42c16d)",
+      sizes:["S","M","L","XL","2XL","3XL","4XL","5XL","6XL"],
+      back: [29,33,38,43,50,57,66,77,86],
+      girth:[40,50,55,60,65,77,88,104,110],
+      neck: [24,28,30,34,38,42,50,66,70],
+      bottom:[37,46,50,55,60,71,80,98,104],
+      /* CONFLICT — same product name, two decks, two different neck rows:
+           2025 deck (1aa4d2e7):  31,38,40,42,47,50,56,64,66   <- what the app uses today
+           2026 deck (this one):  24,28,30,34,38,42,50,66,70
+         Back and girth agree exactly; only neck differs, by up to 10 cm at S.
+         Both are recorded. NOT reconciled — product team needs to say which is current.
+         On this chart the neck row is printed in lighter type than the rest, which may
+         mean it was revised. */
+      conflictsWith:"Raincoat / Magical Mist (2025 deck)",
+      appliesTo:["Magical Mist Raincoat With Harness Opening"]
+    },
+    "Monsoon Mate Easywear": {
+      verified:true, src:"HUFT SPRING SUMMER DECK 2026 #77 (73943f58)",
+      sizes:["S","M","L","XL","2XL","3XL","4XL","5XL","6XL"],
+      back: [29,33,38,43,50,57,66,77,86],
+      girth:[40,50,55,60,65,77,88,104,110],   /* girth round @ tape adjuster, middle stage */
+      neck: [25,29,31,35,39,43,51,67,70],
+      /* Shares the Magical Mist back + girth block but has its own neck.
+         Same girth min/max contradiction as RainBuddie / RainTail:
+         min row (44,47,51,58,62,70,76,84,94) exceeds middle stage at S–2XL.
+         Max row (71,74,79,82,87,91,96,110,120). Left out pending confirmation. */
+      sourceIssue:"girth min row exceeds middle-stage row at S–2XL",
+      appliesTo:["Monsoon Mate Easywear Raincoat For Dogs"]
+    },
+    "Puddle Jumper": {
+      verified:true, src:"HUFT SPRING SUMMER DECK 2026 #81 (4a068677)",
+      sizes:["S","M","L","XL","2XL","3XL","4XL","5XL","6XL"],
+      back: [31,35,40,45,53,60,70,80,88],
+      girth:[42,52,57,63,68,80,91,107,112],
+      neck: [25,30,32,35,38,42,50,64,66],
+      bottom:[35,41,45,50,55,65,77,94,104],
+      /* Shares DD DewDrop's back + girth block exactly, but neck runs narrower
+         (DD DewDrop: 27,31,33,36,41,48,56,64,66). Recorded as observed. */
+      appliesTo:["Puddle Jumper full coverage raincoat"]
     }
   },
 
@@ -269,7 +310,7 @@ const PRODUCT_SPECS = {
 /* 70 distinct apparel size-charts were located across the 29 decks.
    read = transcribed AND re-verified against the source image. */
 const SPEC_COVERAGE = {
-  "Raincoat":   {read:5, total:8},
+  "Raincoat":   {read:8, total:8},   /* COMPLETE */
   "Sweater":    {read:6, total:6},   /* COMPLETE */
   "T-Shirt":    {read:1, total:14},
   "Kurta":      {read:2, total:9},   /* +1: a1f78397 was filed under Sherwani by the classifier */
