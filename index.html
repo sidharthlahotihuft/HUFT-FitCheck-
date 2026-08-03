@@ -1170,16 +1170,17 @@ function downloadCSV(rows,fname){
   a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8;"}));
   a.download=fname; a.click(); URL.revokeObjectURL(a.href);
 }
-/* ---- build from a photo ----------------------------------------------------
-   The browser cannot judge a dog's build — that needs a vision model, and a model
-   needs an API key, which cannot sit in a page every customer downloads. So the
-   photo goes to /api/build-from-photo (see api/build-from-photo.js), which holds
-   the key server-side and returns {build, confidence, note}.
-   Deploy on Vercel and set ANTHROPIC_API_KEY; it works with no other change.
-   If the endpoint is missing or unsure, we ASK. We never guess a build —
-   a guessed build ships a wrong size, which is the thing this tool exists to stop. */
-const BUILD_API = "/api/build-from-photo";
-const MAX_PHOTO_PX = 1200;     // downscale before upload — a 12MP phone photo is pointless here
+/* ---- read the dog from a photo ---------------------------------------------
+   The browser cannot identify a breed or judge a build — that needs a vision
+   model, and a model needs an API key, which cannot sit in a page every customer
+   downloads. So the photo goes to /api/build-from-photo (see api/build-from-photo.js),
+   which holds the key server-side and returns {breed, build, note}.
+   Deploy on Vercel and set OPENAI_API_KEY (or ANTHROPIC_API_KEY); nothing else changes.
+   Either field can come back null — that means "not sure", and we ASK. We never
+   guess: a wrong breed or a wrong build both ship a wrong size, which is the
+   thing this tool exists to stop. */
+const PHOTO_API = "/api/build-from-photo";
+const MAX_PHOTO_PX = 1200;     // a 12MP phone photo is pointless here, and slow to upload
 
 function shrink(file){
   return new Promise((resolve,reject)=>{
@@ -1197,66 +1198,65 @@ function shrink(file){
   });
 }
 
-async function analyseBuild(file,breed){
-  if(!BUILD_API) return {ok:false,reason:"not-connected"};
+async function readDogPhoto(file,breeds){
+  if(!PHOTO_API) return {ok:false,reason:"not-connected"};
   try{
     const {data,mediaType}=await shrink(file);
-    const r=await fetch(BUILD_API,{method:"POST",headers:{"content-type":"application/json"},
-      body:JSON.stringify({image:data,mediaType,breed})});
+    const r=await fetch(PHOTO_API,{method:"POST",headers:{"content-type":"application/json"},
+      body:JSON.stringify({image:data,mediaType,breeds})});
     if(r.status===404 || r.status===405) return {ok:false,reason:"not-connected"};
     if(!r.ok) return {ok:false,reason:"error"};
     const j=await r.json();
-    if(!["lean","average","broad"].includes(j.build)) return {ok:false,reason:"unclear"};
-    return {ok:true,build:j.build,confidence:j.confidence,note:j.note||""};
+    if(!j.breed && !j.build) return {ok:false,reason:"unclear"};
+    return {ok:true,breed:j.breed||null,build:j.build||null,note:j.note||""};
   }catch(e){ return {ok:false,reason:"error"}; }
 }
 const BUILD_LABEL={lean:"Lean",average:"Average",broad:"Broad & sturdy"};
 
 /* ============ CHECK A FIT — the customer-facing flow ============
    breed → product → build → size, then straight back to product for the next one. */
-function CheckFitTab({onSwitchToCatalog}){
-  const [step,setStep]   = React.useState(1);
+function CheckFitTab(){
+  const [step,setStep]   = React.useState(1);   // 1 your dog · 2 product · 3 size
   const [breed,setBreed] = React.useState("");
+  const [build,setBuild] = React.useState("");
   const [bq,setBq]       = React.useState("");
   const [cat,setCat]     = React.useState("");
   const [prod,setProd]   = React.useState("");
   const [pq,setPq]       = React.useState("");
-  const [build,setBuild] = React.useState("");
-  const [photo,setPhoto] = React.useState(null);   // {url,name}
+  const [photo,setPhoto] = React.useState(null);   // {url}
   const [busy,setBusy]   = React.useState(false);
-  const [guess,setGuess] = React.useState(null);   // {build,confidence,note} or {failed,reason}
+  const [read,setRead]   = React.useState(null);   // {breed,build,note} | {failed,reason}
 
   const breeds = Object.keys(BREED_FIT||{}).sort();
-  const cats   = Object.keys(PRODUCT_CHARTS||{}).sort();
-  const shownBreeds = bq.trim()
-    ? breeds.filter(b=>b.toLowerCase().includes(bq.trim().toLowerCase()))
-    : breeds;
+  const shownBreeds = bq.trim() ? breeds.filter(b=>b.toLowerCase().includes(bq.trim().toLowerCase())) : breeds;
+  const cats = Object.keys(PRODUCT_CHARTS||{}).sort()
+    .filter(c=>Object.values(PRODUCT_RECS[c]||{}).some(m=>m[breed]));
   // only products we can actually size for THIS breed — a greyed-out row still
   // reads as an option, and there is nothing behind it
-  const allProds = cat
-    ? Object.keys(PRODUCT_CHARTS[cat]||{}).filter(p=>((PRODUCT_RECS[cat]||{})[p]||{})[breed]).sort()
-    : [];
-  const shownProds = pq.trim()
-    ? allProds.filter(p=>p.toLowerCase().includes(pq.trim().toLowerCase()))
-    : allProds;
+  const allProds = cat ? Object.keys(PRODUCT_CHARTS[cat]||{}).filter(p=>((PRODUCT_RECS[cat]||{})[p]||{})[breed]).sort() : [];
+  const shownProds = pq.trim() ? allProds.filter(p=>p.toLowerCase().includes(pq.trim().toLowerCase())) : allProds;
   const chart = (cat&&prod) ? (PRODUCT_CHARTS[cat]||{})[prod] : null;
   const rec   = (cat&&prod) ? (((PRODUCT_RECS[cat]||{})[prod]||{})[breed]) : null;
 
   const card={background:"#fff",borderRadius:10,border:"1px solid #E6E9EF",padding:18,marginBottom:12};
   const sel={padding:"11px 12px",borderRadius:8,border:"1.5px solid #C3C6D4",fontFamily:"inherit",fontSize:14,background:"#fff",width:"100%",boxSizing:"border-box"};
-  const pill=(active)=>({padding:"8px 15px",borderRadius:999,border:active?"1.5px solid #FF6D1F":"1.5px solid #E6E9EF",
-    background:active?"#FF6D1F":"#fff",color:active?"#fff":"#40434E",fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"inherit"});
+  const pill=(a)=>({padding:"8px 15px",borderRadius:999,border:a?"1.5px solid #FF6D1F":"1.5px solid #E6E9EF",
+    background:a?"#FF6D1F":"#fff",color:a?"#fff":"#40434E",fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"inherit"});
 
-  const STEPS=[[1,"Breed"],[2,"Product"],[3,"Build"],[4,"Size"]];
-  const clearPhoto=()=>{ if(photo&&photo.url) URL.revokeObjectURL(photo.url); setPhoto(null); setGuess(null); setBusy(false); };
-  const reset=()=>{setStep(1);setBreed("");setCat("");setProd("");setBuild("");setBq("");setPq("");clearPhoto();};
-  const anotherProduct=()=>{setStep(2);setCat("");setProd("");setBuild("");setPq("");};
+  const STEPS=[[1,"Your dog"],[2,"Product"],[3,"Size"]];
+  const clearPhoto=()=>{ if(photo&&photo.url) URL.revokeObjectURL(photo.url); setPhoto(null); setRead(null); setBusy(false); };
+  const reset=()=>{setStep(1);setBreed("");setBuild("");setCat("");setProd("");setBq("");setPq("");clearPhoto();};
+  const anotherProduct=()=>{setStep(2);setCat("");setProd("");setPq("");};
   const onPhoto=async(e)=>{
     const f=e.target.files&&e.target.files[0]; if(!f) return;
-    clearPhoto(); setPhoto({url:URL.createObjectURL(f),name:f.name}); setBusy(true);
-    const r=await analyseBuild(f,breed); setBusy(false);
-    if(r.ok){ setGuess(r); setBuild(r.build); } else { setGuess({failed:true,reason:r.reason}); }
+    clearPhoto(); setPhoto({url:URL.createObjectURL(f)}); setBusy(true);
+    const r=await readDogPhoto(f,breeds); setBusy(false);
+    if(r.ok){ setRead(r); if(r.breed) setBreed(r.breed); if(r.build) setBuild(r.build); }
+    else setRead({failed:true,reason:r.reason});
   };
+  const BUILDS=[["lean","🏃","Lean","Ribs easy to feel, tucked waist"],
+                ["average","⚖️","Average","Typical for the breed"],
+                ["broad","🍖","Broad & sturdy","Deep chest, heavy set, or a thick winter coat"]];
 
   return (<>
     <section style={{...card,paddingBottom:14}}>
@@ -1276,32 +1276,100 @@ function CheckFitTab({onSwitchToCatalog}){
         <button onClick={reset} style={{marginLeft:"auto",background:"none",border:"none",color:"#0073EA",cursor:"pointer",fontFamily:"inherit",fontSize:12.5,padding:0}}>start over</button>
       </div>
       <div style={{fontSize:12,color:"#676879"}}>
-        {breed && <b>{breed}</b>}{breed&&prod?" · ":""}{prod}
-        {!breed && "Answer three questions and we'll give you the size."}
+        {breed && <b>{breed}</b>}{breed&&build?` · ${BUILD_LABEL[build].toLowerCase()} build`:""}{prod?` · ${prod}`:""}
+        {!breed && "Upload a photo and we'll work out the breed and build — or tell us yourself."}
       </div>
     </section>
 
-    {/* ---- 1. breed ---- */}
+    {/* ---- 1. the dog: photo, or answer it yourself ---- */}
     {step===1 && <section style={card}>
-      <div style={{fontWeight:700,fontSize:16,marginBottom:3}}>What breed is your dog?</div>
-      <div style={{fontSize:12.5,color:"#676879",marginBottom:12}}>Pick the closest match. For a mixed breed, choose the breed they most resemble in size.</div>
-      <input value={bq} onChange={e=>setBq(e.target.value)} placeholder={`Type to search ${breeds.length} breeds…`} style={{...sel,marginBottom:12}}/>
-      <div style={{display:"flex",gap:7,flexWrap:"wrap",maxHeight:300,overflowY:"auto"}}>
-        {shownBreeds.map(b=>(
-          <button key={b} onClick={()=>{setBreed(b);setStep(2);}} style={pill(false)}>{b}</button>
-        ))}
+      <div style={{fontWeight:700,fontSize:17,marginBottom:3}}>Let's start with your dog 🐾</div>
+      <div style={{fontSize:12.5,color:"#676879",marginBottom:14}}>
+        One photo tells us the breed and the build. Or scroll down and pick them yourself.
+      </div>
+
+      <div style={{border:"1.5px dashed #FFBE92",background:"#FEF7ED",borderRadius:10,padding:16,marginBottom:18}}>
+        {!photo ? (
+          <label style={{display:"block",textAlign:"center",cursor:"pointer"}}>
+            <div style={{fontSize:32}}>📷</div>
+            <div style={{fontWeight:700,fontSize:15,margin:"6px 0 3px"}}>Upload a photo of your dog</div>
+            <div style={{fontSize:12,color:"#676879",marginBottom:11}}>
+              Side-on, standing, whole body in frame works best.
+            </div>
+            <span style={{display:"inline-block",padding:"11px 22px",borderRadius:999,background:"#FF6D1F",
+                          color:"#fff",fontWeight:700,fontSize:14}}>Choose a photo</span>
+            <input type="file" accept="image/*" onChange={onPhoto} style={{display:"none"}}/>
+          </label>
+        ) : (
+          <div style={{display:"flex",gap:14,alignItems:"center",flexWrap:"wrap"}}>
+            <img src={photo.url} alt="your dog" style={{width:104,height:104,objectFit:"cover",borderRadius:10,border:"1.5px solid #FFBE92"}}/>
+            <div style={{flex:1,minWidth:210}}>
+              {busy && <div style={{fontSize:13.5,color:"#676879"}}>Looking at your dog…</div>}
+              {!busy && read && !read.failed && <>
+                {read.breed && <div style={{fontSize:19,fontWeight:700,color:"#BA4511",lineHeight:1.25}}>{read.breed}</div>}
+                {read.build && <div style={{fontSize:13.5,color:"#40434E"}}>{BUILD_LABEL[read.build]} build</div>}
+                {read.note && <div style={{fontSize:12,color:"#676879",marginTop:4}}>{read.note}</div>}
+                {!read.breed && <div style={{fontSize:13,color:"#C58A16",fontWeight:600}}>We couldn't place the breed — pick it below.</div>}
+                {!read.build && <div style={{fontSize:13,color:"#C58A16",fontWeight:600,marginTop:3}}>We couldn't judge the build — pick it below.</div>}
+                <div style={{fontSize:11.5,color:"#9699A6",marginTop:5}}>Not right? Change either one below.</div>
+              </>}
+              {!busy && read && read.failed && <>
+                <div style={{fontSize:13.5,fontWeight:600,color:"#C58A16"}}>
+                  {read.reason==="not-connected" ? "Photo reading isn't switched on yet."
+                    : read.reason==="unclear"    ? "We couldn't tell from that photo."
+                                                 : "Something went wrong reading that photo."}
+                </div>
+                <div style={{fontSize:12,color:"#676879",marginTop:3}}>
+                  {read.reason==="unclear"
+                    ? "A side-on photo of your dog standing, whole body in frame, works best. Or just pick below."
+                    : "Pick your dog's breed and build below instead."}
+                </div>
+              </>}
+              <button onClick={clearPhoto} style={{marginTop:8,background:"none",border:"none",color:"#0073EA",
+                cursor:"pointer",fontFamily:"inherit",fontSize:12.5,padding:0}}>remove photo</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* breed */}
+      <div style={{fontWeight:700,fontSize:14,marginBottom:2}}>Breed{breed?":":""} {breed && <span style={{color:"#BA4511"}}>{breed}</span>}</div>
+      <div style={{fontSize:12,color:"#676879",marginBottom:9}}>For a mixed breed, choose the one they most resemble in size.</div>
+      <input value={bq} onChange={e=>setBq(e.target.value)} placeholder={`Type to search ${breeds.length} breeds…`} style={{...sel,marginBottom:10}}/>
+      <div style={{display:"flex",gap:7,flexWrap:"wrap",maxHeight:190,overflowY:"auto",marginBottom:18}}>
+        {shownBreeds.map(b=><button key={b} onClick={()=>{setBreed(b);setBq("");}} style={pill(breed===b)}>{b}</button>)}
         {shownBreeds.length===0 && <div style={{fontSize:13,color:"#9699A6"}}>No breed matches “{bq}”.</div>}
       </div>
+
+      {/* build */}
+      <div style={{fontWeight:700,fontSize:14,marginBottom:2}}>Build{build?":":""} {build && <span style={{color:"#BA4511"}}>{BUILD_LABEL[build]}</span>}</div>
+      <div style={{fontSize:12,color:"#676879",marginBottom:9}}>Same breed, different dogs — this decides between two sizes.</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10}}>
+        {BUILDS.map(([v,ic,l,d])=>(
+          <button key={v} onClick={()=>setBuild(v)}
+            style={{padding:"15px 14px",borderRadius:10,border:build===v?"1.5px solid #FF6D1F":"1.5px solid #E6E9EF",
+                    background:build===v?"#FEF1E5":"#fff",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
+            <div style={{fontSize:23}}>{ic}</div>
+            <div style={{fontWeight:700,fontSize:14.5,margin:"5px 0 2px"}}>{l}{build===v?" ✓":""}</div>
+            <div style={{fontSize:11.5,color:"#676879",lineHeight:1.45}}>{d}</div>
+          </button>
+        ))}
+      </div>
+
+      <button onClick={()=>setStep(2)} disabled={!breed||!build}
+        style={{marginTop:18,width:"100%",padding:"14px",borderRadius:10,border:"none",fontFamily:"inherit",
+                fontWeight:700,fontSize:15,cursor:(breed&&build)?"pointer":"default",
+                background:(breed&&build)?"#FF6D1F":"#EDEEF2",color:(breed&&build)?"#fff":"#9699A6"}}>
+        {breed&&build ? "Next — choose a product →" : "Pick a breed and a build to continue"}
+      </button>
     </section>}
 
     {/* ---- 2. product ---- */}
     {step===2 && <section style={card}>
       <div style={{fontWeight:700,fontSize:16,marginBottom:3}}>What are you buying for your {breed}?</div>
-      <div style={{fontSize:12.5,color:"#676879",marginBottom:12}}>Choose the type first, then the exact product.</div>
+      <div style={{fontSize:12.5,color:"#676879",marginBottom:12}}>Choose the type first, then the product.</div>
       <div style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:14}}>
-        {cats.filter(c=>Object.values(PRODUCT_RECS[c]||{}).some(m=>m[breed])).map(c=>(
-          <button key={c} onClick={()=>{setCat(c);setProd("");setPq("");}} style={pill(cat===c)}>{c}</button>
-        ))}
+        {cats.map(c=><button key={c} onClick={()=>{setCat(c);setProd("");setPq("");}} style={pill(cat===c)}>{c}</button>)}
       </div>
       {cat && <>
         {allProds.length>12 && <input value={pq} onChange={e=>setPq(e.target.value)} placeholder={`Search ${allProds.length} ${cat.toLowerCase()} products…`} style={{...sel,marginBottom:10}}/>}
@@ -1319,84 +1387,11 @@ function CheckFitTab({onSwitchToCatalog}){
           </div>}
         </div>
       </>}
+      <button onClick={()=>setStep(1)} style={{marginTop:12,background:"none",border:"none",color:"#0073EA",cursor:"pointer",fontFamily:"inherit",fontSize:12.5,padding:0}}>← change dog</button>
     </section>}
 
-    {/* ---- 3. build ---- */}
-    {step===3 && <section style={card}>
-      <div style={{fontWeight:700,fontSize:16,marginBottom:3}}>One last thing about your {breed} 🐾</div>
-      <div style={{fontSize:12.5,color:"#676879",marginBottom:14}}>
-        Same breed, different dogs. Send us a photo and we'll read their build — or just tell us.
-      </div>
-
-      {/* ---- photo ---- */}
-      <div style={{border:"1.5px dashed #FFBE92",background:"#FEF7ED",borderRadius:10,padding:16,marginBottom:14}}>
-        {!photo ? (
-          <label style={{display:"block",textAlign:"center",cursor:"pointer"}}>
-            <div style={{fontSize:30}}>📷</div>
-            <div style={{fontWeight:700,fontSize:14.5,margin:"6px 0 3px"}}>Upload a photo of your dog</div>
-            <div style={{fontSize:12,color:"#676879",marginBottom:10}}>
-              A side-on photo, standing, whole body in frame works best.
-            </div>
-            <span style={{display:"inline-block",padding:"10px 20px",borderRadius:999,background:"#FF6D1F",
-                          color:"#fff",fontWeight:700,fontSize:13.5}}>Choose a photo</span>
-            <input type="file" accept="image/*" onChange={onPhoto} style={{display:"none"}}/>
-          </label>
-        ) : (
-          <div style={{display:"flex",gap:14,alignItems:"center",flexWrap:"wrap"}}>
-            <img src={photo.url} alt="your dog" style={{width:96,height:96,objectFit:"cover",borderRadius:10,border:"1.5px solid #FFBE92"}}/>
-            <div style={{flex:1,minWidth:200}}>
-              {busy && <div style={{fontSize:13.5,color:"#676879"}}>Reading the photo…</div>}
-              {!busy && guess && guess.build && <>
-                <div style={{fontSize:12,color:"#676879"}}>From the photo, your dog looks</div>
-                <div style={{fontSize:20,fontWeight:700,color:"#BA4511"}}>{BUILD_LABEL[guess.build]}</div>
-                {guess.note && <div style={{fontSize:12,color:"#676879",marginTop:3}}>{guess.note}</div>}
-                <div style={{fontSize:11.5,color:"#9699A6",marginTop:4}}>Not right? Pick the correct one below.</div>
-              </>}
-              {!busy && guess && guess.failed && <>
-                <div style={{fontSize:13.5,fontWeight:600,color:"#C58A16"}}>
-                  {guess.reason==="not-connected"
-                    ? "Photo reading isn't switched on yet."
-                    : guess.reason==="unclear"
-                      ? "We couldn't tell from that photo."
-                      : "Something went wrong reading that photo."}
-                </div>
-                <div style={{fontSize:12,color:"#676879",marginTop:3}}>
-                  {guess.reason==="unclear"
-                    ? "A side-on photo of your dog standing, with their whole body in frame, works best. Or just tell us below."
-                    : "Tell us below instead — it takes one tap."}
-                </div>
-              </>}
-              <button onClick={clearPhoto} style={{marginTop:8,background:"none",border:"none",color:"#0073EA",
-                cursor:"pointer",fontFamily:"inherit",fontSize:12.5,padding:0}}>remove photo</button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ---- or just ask ---- */}
-      <div style={{fontSize:12.5,color:"#676879",marginBottom:8}}>
-        {guess&&guess.build ? "Or choose it yourself:" : "How would you describe their build?"}
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10}}>
-        {[["lean","🏃","Lean","Ribs easy to feel, tucked waist"],
-          ["average","⚖️","Average","Typical for the breed"],
-          ["broad","🍖","Broad & sturdy","Deep chest, heavy set, or a thick winter coat"]].map(([v,ic,l,d])=>{
-          const picked = guess&&guess.build===v;
-          return (
-          <button key={v} onClick={()=>{setBuild(v);setStep(4);}}
-            style={{padding:"16px 14px",borderRadius:10,border:picked?"1.5px solid #FF6D1F":"1.5px solid #E6E9EF",
-                    background:picked?"#FEF1E5":"#fff",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
-            <div style={{fontSize:24}}>{ic}</div>
-            <div style={{fontWeight:700,fontSize:14.5,margin:"5px 0 2px"}}>{l}{picked?" ✓":""}</div>
-            <div style={{fontSize:11.5,color:"#676879",lineHeight:1.45}}>{d}</div>
-          </button>);
-        })}
-      </div>
-      <button onClick={()=>setStep(2)} style={{marginTop:12,background:"none",border:"none",color:"#0073EA",cursor:"pointer",fontFamily:"inherit",fontSize:12.5,padding:0}}>← pick a different product</button>
-    </section>}
-
-    {/* ---- 4. the answer ---- */}
-    {step===4 && (()=>{
+    {/* ---- 3. the answer ---- */}
+    {step===3 && (()=>{
       if(!rec) return <section style={card}><p style={{margin:0,color:"#9699A6"}}>We don’t have enough data for this combination yet.</p></section>;
       const [i,j]=rec;
       const k = build==="broad" ? j : i;
@@ -1416,8 +1411,8 @@ function CheckFitTab({onSwitchToCatalog}){
         <section style={card}>
           <div style={{display:"flex",gap:9,flexWrap:"wrap"}}>
             <button onClick={anotherProduct} style={{...pill(true),padding:"11px 18px",fontSize:13.5}}>Check another product for {breed}</button>
-            <button onClick={()=>setStep(3)} style={{...pill(false),padding:"11px 18px",fontSize:13.5}}>Change build</button>
-            <button onClick={reset} style={{...pill(false),padding:"11px 18px",fontSize:13.5}}>Different dog</button>
+            <button onClick={()=>setStep(1)} style={{...pill(false),padding:"11px 18px",fontSize:13.5}}>Change dog</button>
+            <button onClick={reset} style={{...pill(false),padding:"11px 18px",fontSize:13.5}}>Start over</button>
           </div>
           <div style={{fontSize:11.5,color:"#9699A6",marginTop:12,lineHeight:1.6}}>
             This size is what {breed} owners actually kept — based on {FIT_META.orders.toLocaleString()} orders and {FIT_META.returns.toLocaleString()} returns over {FIT_META.window}. Not calculated from a formula.
@@ -1562,7 +1557,7 @@ function FitCatalogTab({onAsk}){
                 </div>
               : (chart.skuNames||[]).length>0 && <div style={{fontSize:11.5,color:"#9699A6",padding:"8px 0"}}>Applies to: {chart.skuNames.join(", ")}</div>}
             <div style={{overflowX:"auto"}}><table style={{borderCollapse:"collapse",fontSize:12.5,width:"100%"}}>
-              <thead><tr>{["Breed","RECOMMENDED size","Measurements","Size up (broad & sturdy)","Kept 12m — whole category","Keep rate — whole category","New size needed?"].map(h=>
+              <thead><tr>{["Breed","RECOMMENDED size","Measurements","Size up (broad & sturdy)",`Keep rate — all ${activeSub} for this breed`,"New size needed?"].map(h=>
                 <th key={h} style={{textAlign:"left",padding:"7px 9px",borderBottom:"1.5px solid #E6E9EF",color:"#676879",fontWeight:600,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
               <tbody>{rows.map(r=>(
                 <tr key={r.breed} style={{borderBottom:"1px solid #F2F3F7"}}>
@@ -1571,14 +1566,16 @@ function FitCatalogTab({onAsk}){
                   <td style={{...S_MONO,padding:"7px 9px",color:"#676879",fontSize:11.5}}>
                     {Object.entries(chartDims(r.chart,r.i)||{}).filter(([,v])=>v!=null&&v!=="").map(([k,v])=>k+" "+v).join(" · ")}</td>
                   <td style={{padding:"7px 9px"}}>{r.up===r.rec?<span style={{color:"#9699A6"}}>largest size</span>:r.up}</td>
-                  <td style={{...S_MONO,padding:"7px 9px",color:"#676879"}}>{r.n!=null?r.n.toLocaleString():"—"}</td>
-                  <td style={{...S_MONO,padding:"7px 9px",color:keepColour(r.keep),fontWeight:600}}>{r.keep!=null?r.keep+"%":"—"}</td>
+                  <td style={{...S_MONO,padding:"7px 9px",color:keepColour(r.keep),fontWeight:600}}>
+                    {r.keep!=null?r.keep+"%":"—"}
+                    {r.n!=null && <span style={{color:"#9699A6",fontWeight:400}}> of {r.n.toLocaleString()}</span>}
+                  </td>
                   <td style={{padding:"7px 9px",color:r.gap?"#D83A52":"#9699A6"}}>{r.gap||"no"}</td>
                 </tr>))}</tbody>
             </table></div>
             {rows.length===0 && <p style={{fontSize:13,color:"#9699A6"}}>No breed has enough sales evidence for this product yet.</p>}
             <div style={{fontSize:11,color:"#9699A6",marginTop:8,lineHeight:1.6}}>
-              The last two columns are for <b>{activeSub}</b> as a whole, not this SKU — the sales pull groups by category and size, not by product code, so the same figure repeats down a category. Re-pull grouped by base SKU if you need per-product keep rates.
+              Keep rate is how often that breed kept the size we recommend, across <b>every {activeSub}</b> they bought — not this SKU alone. The sales pull groups by category and size, not by product code, so the figure repeats down the category. Re-pull grouped by base SKU if you need it per product.
             </div>
           </div>}
         </section>);

@@ -1,8 +1,14 @@
-# Photo → build
+# Photo → breed and build
 
 `build-from-photo.js` is a Vercel serverless function. The customer uploads a photo
-in step 3 of Check a fit; the browser shrinks it, posts it here, and this asks a
-vision model whether the dog is `lean`, `average`, `broad` — or `unclear`.
+at step 1 of Check a fit; the browser shrinks it, posts it here with the list of
+breeds we hold data for, and this asks a vision model for two things:
+
+- **breed** — constrained to the list we sent, or `null` if it will not commit
+- **build** — `lean`, `average`, `broad`, or `null`
+
+Either can come back `null` independently. The screen then asks the customer only
+for the part it could not read.
 
 The API key lives here, on the server. It must never go into `index.html` — that
 file is downloaded by every customer.
@@ -34,32 +40,41 @@ Same steps with `ANTHROPIC_API_KEY` from https://platform.claude.com, and option
 ```bash
 curl -s -X POST https://YOUR-SITE.vercel.app/api/build-from-photo \
   -H 'content-type: application/json' \
-  -d "{\"image\":\"$(base64 -i dog.jpg | tr -d '\n')\",\"mediaType\":\"image/jpeg\",\"breed\":\"Beagle\"}"
+  -d "{\"image\":\"$(base64 -i dog.jpg | tr -d '\n')\",\"mediaType\":\"image/jpeg\",\"breeds\":[\"Beagle\",\"Pug\",\"Labrador Retriever\"]}"
 ```
 
-Expect `{"build":"average","confidence":0.8,"note":"..."}`.
+Expect `{"breed":"Beagle","breedConfidence":0.9,"build":"average","buildConfidence":0.8,"note":"..."}`.
 
 | You get | It means |
 |---|---|
 | `{"error":"no API key set …"}` | the environment variable did not take — check you redeployed |
 | `{"error":"upstream"}` | bad key, no credit, rate limit, or a model name that does not exist. The real reason is in the Vercel function logs |
-| `{"build":"unclear"}` | working correctly — the model would not commit on that photo |
+| `{"breed":null}` or `{"build":null}` | working correctly — the model would not commit, so we ask the customer |
 
 ## What it deliberately will not do
 
-- **It will not guess.** Below 0.55 confidence, or on a photo it cannot read, it
-  returns `unclear` and the customer is asked instead. A guessed build ships a
-  wrong size, which is the thing this whole tool exists to reduce.
+- **It will not guess.** Below 0.55 confidence, or on a photo it cannot read, the
+  field comes back `null` and the customer is asked instead. A wrong breed and a
+  wrong build both ship a wrong size, which is the thing this tool exists to reduce.
+- **It will not invent a breed.** The answer is checked against the list the client
+  sent; anything outside it is discarded.
 - **It will not comment on the dog's weight or health.** The note is read by the
   owner. It describes build for sizing, nothing else.
 
 ## Known limits
 
-Single-photo build judgement is genuinely hard. A long coat reads as bulk — which
-is correct for sizing, and the prompt says so, but it means a fluffy lean dog gets
-called broad. Head-on photos, sitting dogs and cropped shots mostly come back
-`unclear`. The three manual buttons stay on screen for exactly this reason; treat
-the photo as a shortcut, not as the answer.
+**Breed from a photo is the weaker of the two.** Most dogs in India are mixed breed,
+and a mix has no right answer — the prompt tells the model to pick the listed breed
+closest in body size and shape and to lower its confidence, which is the useful
+behaviour for sizing but will not always match what the owner calls their dog.
+Expect Indie and Indian Spitz to absorb a lot of the uncertainty.
+
+Build is hard too. A long coat reads as bulk — correct for sizing, and the prompt
+says so, but a fluffy lean dog gets called broad. Head-on photos, sitting dogs and
+cropped shots mostly come back null.
+
+The breed chips and build cards stay on screen underneath for exactly this reason.
+Treat the photo as a shortcut, not as the answer.
 
 ## Cost
 
