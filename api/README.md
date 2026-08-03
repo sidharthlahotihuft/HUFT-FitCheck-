@@ -1,22 +1,33 @@
 # Photo → build
 
 `build-from-photo.js` is a Vercel serverless function. The customer uploads a photo
-in step 3 of Check a fit; the browser shrinks it, posts it here, and this calls
-Claude's vision API and returns `lean`, `average`, `broad` or `unclear`.
+in step 3 of Check a fit; the browser shrinks it, posts it here, and this asks a
+vision model whether the dog is `lean`, `average`, `broad` — or `unclear`.
 
 The API key lives here, on the server. It must never go into `index.html` — that
 file is downloaded by every customer.
 
-## Switch it on
+## Switch it on — OpenAI
 
-1. Get an API key from https://platform.claude.com
+1. Get a key from https://platform.openai.com/api-keys (starts `sk-...`)
 2. Vercel → your project → Settings → Environment Variables → add
-   `ANTHROPIC_API_KEY`. Add it to Production, Preview and Development.
-3. Redeploy. Nothing in `index.html` needs changing — it already points at
-   `/api/build-from-photo`.
+   `OPENAI_API_KEY`. Tick Production, Preview and Development.
+3. Redeploy.
 
-Optional: `BUILD_MODEL` to pin a different model. Default is `claude-sonnet-5`.
-Current model IDs: https://platform.claude.com/docs/en/about-claude/models/overview
+Nothing in `index.html` changes — it already points at `/api/build-from-photo`.
+
+Optional: `OPENAI_MODEL` to pin a different model. Default `gpt-5.6`.
+Model list: https://developers.openai.com/api/docs/models/compare
+A smaller model (e.g. a mini variant) costs less and is likely fine for this —
+worth testing against a dozen of your own photos before committing either way.
+
+## Or Anthropic
+
+Same steps with `ANTHROPIC_API_KEY` from https://platform.claude.com, and optional
+`ANTHROPIC_MODEL` (default `claude-sonnet-5`).
+
+**If both keys are set, OpenAI is used.** To switch back to Anthropic, remove
+`OPENAI_API_KEY` from the Vercel environment.
 
 ## Check it works
 
@@ -27,7 +38,12 @@ curl -s -X POST https://YOUR-SITE.vercel.app/api/build-from-photo \
 ```
 
 Expect `{"build":"average","confidence":0.8,"note":"..."}`.
-`{"error":"ANTHROPIC_API_KEY is not set"}` means step 2 did not take.
+
+| You get | It means |
+|---|---|
+| `{"error":"no API key set …"}` | the environment variable did not take — check you redeployed |
+| `{"error":"upstream"}` | bad key, no credit, rate limit, or a model name that does not exist. The real reason is in the Vercel function logs |
+| `{"build":"unclear"}` | working correctly — the model would not commit on that photo |
 
 ## What it deliberately will not do
 
