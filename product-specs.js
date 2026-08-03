@@ -492,6 +492,34 @@ const PRODUCT_SPECS = {
   }
 };
 
+/* ---------------------------------------------------------------------------
+   SOURCE OF TRUTH: the deck charts, not Odoo.
+
+   Odoo publishes only "Length" for body apparel — no girth, no neck. Where the
+   deck and Odoo both have a length, they were compared cell by cell:
+       401 size-cells compared, 397 agree (99%).
+   All 4 disagreements are Odoo defects, listed below. None were deck errors.
+
+   Two caveats: decks can disagree with each other (see Magical Mist neck), and
+   some deck charts are customer size guides rather than tech packs (chartType).
+   --------------------------------------------------------------------------- */
+const CATALOG_DEFECTS = [
+  {
+    product:"HUFT Printed Shirt For Pets - Multicolor", sku:"HUFTFC8779*",
+    issue:"Lengths shifted up one size and 3XL missing entirely.",
+    odoo:{S:26,M:30,L:40,XL:47,"2XL":54,"3XL":null,"4XL":64,"5XL":70},
+    deck:{S:26,M:30,L:36,XL:40,"2XL":47,"3XL":54,"4XL":64,"5XL":70},
+    note:"The Red variant (HUFTFC8778*) of the same product matches the deck exactly. "+
+         "So Multicolor L ships a 40 cm garment while Red L ships 36 cm, same size letter."
+  },
+  {
+    product:"HUFT Monsoon Mate Easywear Raincoat For Dogs - Red", sku:"HUFTC01164XL",
+    issue:"4XL length is 55 cm, which is SHORTER than 3XL at 57 cm — sequence goes backwards.",
+    odoo:{"3XL":57,"4XL":55,"5XL":77}, deck:{"3XL":57,"4XL":66,"5XL":77},
+    note:"Deck value 66 fits the sequence. Looks like a transcription typo in Odoo."
+  }
+];
+
 /* 70 distinct apparel size-charts were located across the 29 decks.
    read = transcribed AND re-verified against the source image. */
 const SPEC_COVERAGE = {

@@ -10,6 +10,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
 <script src="products-catalog.js"></script>
+<script src="fit-data.js"></script>
 <style>
   body { margin: 0; background: #F6F7FB; }
   input:focus, button:focus, textarea:focus, select:focus { outline: 2px solid #FF6D1F; outline-offset: 1px; }
@@ -907,269 +908,6 @@ function aggregateDims(product, variant){
   };
 }
 
-function CatalogTab({catalog,customCount,odooCount,curatedCount,onAddProduct,onRemoveProduct,onAsk}){
-  const [showAdd,setShowAdd]=useState(false);
-  const addProduct=(p)=>{ onAddProduct(p); setShowAdd(false); };
-  const removeProduct=(name)=>{ if(!window.confirm(`Remove "${name}"?`)) return; onRemoveProduct(name); };
-
-  const [q,setQ]=useState("");
-  const [cat,setCat]=useState("All");
-  const [sub,setSub]=useState("All");
-  const [pet,setPet]=useState("All");
-  const [expanded,setExpanded]=useState(null);
-
-  const CATS = useMemo(()=>["All",...Array.from(new Set(catalog.map(p=>p.category))).sort()],[catalog]);
-  const SUBS = useMemo(()=>["All",...Array.from(new Set(catalog.filter(p=>cat==="All"||p.category===cat).map(p=>p.subCategory))).sort()],[catalog,cat]);
-  const PETS = useMemo(()=>["All",...Array.from(new Set(catalog.map(p=>p.petType))).sort()],[catalog]);
-
-  const filtered = useMemo(()=>catalog.filter(p=>
-    (cat==="All"||p.category===cat) &&
-    (sub==="All"||p.subCategory===sub) &&
-    (pet==="All"||p.petType===pet) &&
-    (q.trim()===""||p.name.toLowerCase().includes(q.toLowerCase()))
-  ),[catalog,cat,sub,pet,q]);
-
-  const totalSkus = catalog.reduce((n,p)=>n+p.variants.length,0);
-  const card={background:"#fff",borderRadius:8,border:"1px solid #E6E9EF",padding:16,marginBottom:12};
-  const sel={padding:"6px 10px",borderRadius:7,border:"1px solid #C3C6D4",fontSize:12.5,fontFamily:"inherit",background:"#fff"};
-
-  if(showAdd) return <AddProductForm onAdd={addProduct} onClose={()=>setShowAdd(false)}/>;
-
-  return (
-    <React.Fragment>
-      <section style={card}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap",marginBottom:10}}>
-          <div>
-            <h3 style={{margin:0,fontSize:15}}>HUFT Catalog</h3>
-            <p style={{fontSize:12.5,color:"#676879",margin:"4px 0 0"}}>{catalog.length.toLocaleString()} products · {totalSkus.toLocaleString()} SKUs — {odooCount.toLocaleString()} from the Odoo export, {curatedCount} fit-matched, {customCount} team-added.</p>
-          </div>
-          <button onClick={()=>setShowAdd(true)} style={{background:"#FF6D1F",color:"#fff",border:"none",borderRadius:8,padding:"9px 18px",fontWeight:600,fontSize:13.5,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>+ Add product</button>
-        </div>
-        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search product name…"
-          style={{width:"100%",boxSizing:"border-box",padding:"9px 14px",borderRadius:8,border:"1.5px solid #E6E9EF",fontSize:13.5,fontFamily:"inherit",marginBottom:10}}/>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-          <select value={cat} onChange={e=>{setCat(e.target.value);setSub("All");}} style={sel}>
-            {CATS.map(c=><option key={c} value={c}>{c==="All"?"All categories":c}</option>)}
-          </select>
-          <select value={sub} onChange={e=>setSub(e.target.value)} style={sel}>
-            {SUBS.map(s=><option key={s} value={s}>{s==="All"?"All sub-categories":s}</option>)}
-          </select>
-          <select value={pet} onChange={e=>setPet(e.target.value)} style={sel}>
-            {PETS.map(p=><option key={p} value={p}>{p==="All"?"All pets":p}</option>)}
-          </select>
-          <span style={{fontSize:12,color:"#9699A6"}}>{filtered.length.toLocaleString()} match{filtered.length===1?"":"es"}</span>
-        </div>
-      </section>
-      {odooCount===0 && <p style={{textAlign:"center",color:"#9699A6",fontSize:12.5}}>Odoo catalog data not loaded — check that products-catalog.js is present alongside index.html. Fit-matched and team-added products still show below.</p>}
-      {filtered.slice(0,300).map((p,i)=>{
-        const open=expanded===i;
-        return (
-          <div key={p.name+i} style={{...card,display:"flex",gap:12,alignItems:"flex-start"}}>
-            <div style={{width:56,height:56,borderRadius:8,background:"#F5F6F8",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>📦</div>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{display:"flex",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
-                <div style={{fontWeight:700,fontSize:14,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                  {p.name}
-                  {p.fitMatched && <span style={{fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:999,background:"#E5F9F0",color:"#00854D"}}>FIT-MATCHED</span>}
-                  {p.custom && <span style={{fontSize:9.5,fontWeight:700,padding:"2px 7px",borderRadius:999,background:"#F0F1F6",color:"#565A6E"}}>TEAM-ADDED</span>}
-                </div>
-                <div style={{display:"flex",gap:6,flexShrink:0}}>
-                  {p.fitMatched && <button onClick={()=>onAsk&&onAsk(p.name)} style={{border:"1px solid #FF6D1F",background:"#fff",color:"#FF6D1F",borderRadius:7,padding:"3px 10px",fontSize:11.5,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>Ask fit →</button>}
-                  {p.custom && <button onClick={()=>removeProduct(p.name)} style={{border:"1px solid #E6E9EF",background:"#fff",color:"#E2445C",borderRadius:7,padding:"3px 10px",fontSize:11.5,cursor:"pointer",fontFamily:"inherit"}}>Remove</button>}
-                  <button onClick={()=>setExpanded(open?null:i)} style={{border:"1px solid #E6E9EF",background:"#fff",borderRadius:7,padding:"3px 10px",fontSize:11.5,cursor:"pointer",fontFamily:"inherit",color:"#40434E"}}>{open?"Hide":`${p.variants.length} size${p.variants.length>1?"s":""}`}</button>
-                </div>
-              </div>
-              <div style={{fontSize:11.5,color:"#9699A6",marginTop:2}}>{p.category} · {p.subCategory} · {p.petType}{p.collection?` · ${p.collection}`:""}</div>
-              {open && (
-                <div style={{marginTop:8,display:"flex",flexWrap:"wrap",gap:6}}>
-                  {p.variants.map(v=>(
-                    <span key={v.sku} title={v.sku} style={{...MONO,fontSize:11,padding:"3px 9px",borderRadius:999,background:"#F5F6F8",color:"#40434E"}}>{v.size}{v.dimension?` · ${v.dimension}`:""}</span>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })}
-      {filtered.length===0 && <p style={{textAlign:"center",color:"#9699A6"}}>No products match — clear the search or filters.</p>}
-      {filtered.length>300 && <p style={{textAlign:"center",color:"#9699A6",fontSize:12.5}}>Showing first 300 of {filtered.length.toLocaleString()} — narrow your search or filters to see more.</p>}
-    </React.Fragment>
-  );
-}
-
-/* ---------- add-a-product form (Odoo-style fields) ---------- */
-function AddProductForm({onAdd,onClose}){
-  const [name,setName]=useState("");
-  const [category,setCategory]=useState("Clothing");
-  const [subCategory,setSubCategory]=useState("");
-  const [petType,setPetType]=useState("Dog");
-  const [collection,setCollection]=useState("");
-  const [image,setImage]=useState("");
-  const [variants,setVariants]=useState([{size:"M",dimension:"Length - 30 cm"}]);
-  const [err,setErr]=useState("");
-  const inp={fontFamily:"inherit",fontSize:13.5,fontWeight:500,padding:"7px 9px",borderRadius:7,border:"1.5px solid #C3C6D4",width:"100%",boxSizing:"border-box"};
-  const lbl={fontSize:10.5,letterSpacing:"0.05em",textTransform:"uppercase",color:"#676879",fontWeight:600,display:"block",marginBottom:3};
-  const sel={...inp,background:"#fff"};
-  const setVariant=(i,k,v)=>setVariants(vs=>vs.map((row,j)=>j===i?{...row,[k]:v}:row));
-  const addRow=()=>setVariants(vs=>[...vs,{size:"",dimension:""}]);
-  const rmRow=i=>setVariants(vs=>vs.filter((_,j)=>j!==i));
-  const submit=()=>{
-    if(!name.trim()) return setErr("Product name is required.");
-    if(!subCategory.trim()) return setErr("Sub-category is required (e.g. Harness, T-Shirt, Chew Toy).");
-    const cleanVariants=variants.filter(v=>v.size.trim());
-    if(!cleanVariants.length) return setErr("At least one size is required.");
-    onAdd({
-      name:name.trim(), category, subCategory:subCategory.trim(), petType, collection:collection.trim()||null,
-      season:null, image:image.trim()||null, custom:true,
-      variants:cleanVariants.map((v,i)=>({size:v.size.trim(), sku:"CUSTOM-"+Date.now()+"-"+i, dimension:v.dimension.trim()})),
-    });
-  };
-  return (
-    <section style={{background:"#fff",borderRadius:8,border:"1.5px solid #FF6D1F",padding:16,marginBottom:12}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-        <h3 style={{margin:0,fontSize:15}}>Add a product</h3>
-        <button onClick={onClose} style={{border:"1px solid #E6E9EF",background:"#fff",borderRadius:7,padding:"4px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit",color:"#676879"}}>Cancel</button>
-      </div>
-      <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
-        <div style={{flex:2,minWidth:200}}><span style={lbl}>Product name</span><input value={name} onChange={e=>setName(e.target.value)} placeholder="HUFT Magical Mist Raincoat For Pets - Coral" style={inp}/></div>
-        <div style={{flex:1,minWidth:140}}><span style={lbl}>Category</span>
-          <select value={category} onChange={e=>setCategory(e.target.value)} style={sel}>
-            <option>Clothing</option><option>Collars, Leashes & Harnesses</option><option>Pet Toys</option><option>Other</option>
-          </select>
-        </div>
-      </div>
-      <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
-        <div style={{flex:1,minWidth:160}}><span style={lbl}>Sub-category</span><input value={subCategory} onChange={e=>setSubCategory(e.target.value)} placeholder="e.g. Raincoat, Harness, Chew Toy" style={inp}/></div>
-        <div style={{flex:1,minWidth:120}}><span style={lbl}>Pet type</span>
-          <select value={petType} onChange={e=>setPetType(e.target.value)} style={sel}>
-            <option>Dog</option><option>Cat</option><option>Dog/Cat</option>
-          </select>
-        </div>
-        <div style={{flex:1,minWidth:140}}><span style={lbl}>Collection (optional)</span><input value={collection} onChange={e=>setCollection(e.target.value)} placeholder="e.g. Monsoon 24" style={inp}/></div>
-      </div>
-      <div style={{marginBottom:10}}><span style={lbl}>Image URL (optional)</span><input value={image} onChange={e=>setImage(e.target.value)} placeholder="https://cdn.shopify.com/…" style={inp}/></div>
-      <span style={lbl}>Sizes & dimensions</span>
-      <div style={{display:"grid",gap:6,marginTop:4}}>
-        {variants.map((v,i)=>(
-          <div key={i} style={{display:"flex",gap:6,alignItems:"center"}}>
-            <input value={v.size} onChange={e=>setVariant(i,"size",e.target.value)} placeholder="Size (e.g. M)" style={{...inp,maxWidth:110}}/>
-            <input value={v.dimension} onChange={e=>setVariant(i,"dimension",e.target.value)} placeholder="Dimension (e.g. Length - 30 cm)" style={inp}/>
-            {variants.length>1 && <button onClick={()=>rmRow(i)} style={{border:"none",background:"transparent",color:"#E2445C",cursor:"pointer",fontSize:16,flexShrink:0}}>×</button>}
-          </div>
-        ))}
-      </div>
-      <button onClick={addRow} style={{marginTop:8,border:"1px dashed #C3C6D4",background:"#fff",borderRadius:7,padding:"6px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"inherit",color:"#676879"}}>+ Add size</button>
-      {err && <p style={{color:"#E2445C",fontSize:13,margin:"12px 0 0"}}>{err}</p>}
-      <div style={{marginTop:14}}>
-        <button onClick={submit} style={{background:"#FF6D1F",color:"#fff",border:"none",borderRadius:8,padding:"9px 20px",fontSize:13.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Add product</button>
-      </div>
-    </section>
-  );
-}
-
-function ProductsTab({skus,all,onSave,onAsk}){
-  const [editing,setEditing]=useState(null); // sku id or "new"
-  const [expanded,setExpanded]=useState(skus[0]?skus[0].id:null);
-  const blank=()=>({id:"sku_"+Date.now(),name:"",type:"harness",url:"",positioning:"functional",pullFocus:false,excludeGroups:["Toy","X-Small"],notes:"",
-    variants:[{size:"Small",neckMin:33,neckMax:46,chestMin:46,chestMax:61,lengthMin:28,lengthMax:38,weightMin:6,weightMax:11}]});
-  const card={background:"#fff",borderRadius:8,border:"1px solid #E6E9EF",padding:16,marginBottom:12};
-  if(editing) return <ProductEditor sku={editing==="new"?blank():skus.find(s=>s.id===editing)} all={all}
-    onCancel={()=>setEditing(null)} onSave={sk=>{ const exists=skus.some(s=>s.id===sk.id); onSave(exists?skus.map(s=>s.id===sk.id?sk:s):[...skus,sk]); setEditing(null); setExpanded(sk.id);}}
-    onDelete={id=>{ onSave(skus.filter(s=>s.id!==id)); setEditing(null); }}/>;
-  return (
-    <React.Fragment>
-      <section style={{...card,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
-        <div><h3 style={{margin:0,fontSize:15}}>Product catalog ({skus.length})</h3><p style={{fontSize:12.5,color:"#676879",margin:"4px 0 0"}}>Define a SKU's size variants once — then ask the engine which breeds and sizes it fits. Attributes mirror what you'd pull from Shopify.</p></div>
-        <button onClick={()=>setEditing("new")} style={{background:"#FF6D1F",color:"#fff",border:"none",borderRadius:8,padding:"9px 18px",fontWeight:600,fontSize:13.5,cursor:"pointer",fontFamily:"inherit"}}>+ Add product</button>
-      </section>
-      {skus.map(sk=>{
-        const open=expanded===sk.id;
-        return (
-        <div key={sk.id} style={card}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-            <div>
-              <div style={{fontWeight:700,fontSize:15}}>{sk.name||"Untitled product"} <span style={{fontSize:11,fontWeight:600,padding:"2px 8px",borderRadius:999,background:"#FEF1E5",color:"#BA4511",marginLeft:4}}>{sk.type}</span></div>
-              <div style={{fontSize:12,color:"#676879",marginTop:2}}>{sk.variants.length} sizes: {sk.variants.map(v=>v.size).join(", ")}{sk.pullFocus?" · no-pull / functional":""}</div>
-            </div>
-            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              <button onClick={()=>onAsk(sk.name)} style={{background:"#323338",color:"#fff",border:"none",borderRadius:7,padding:"7px 13px",fontSize:12.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Ask fit →</button>
-              <button onClick={()=>setEditing(sk.id)} style={{border:"1px solid #E6E9EF",background:"#fff",borderRadius:7,padding:"7px 13px",fontSize:12.5,cursor:"pointer",fontFamily:"inherit",color:"#40434E"}}>Edit</button>
-              <button onClick={()=>setExpanded(open?null:sk.id)} style={{border:"1px solid #E6E9EF",background:"#fff",borderRadius:7,padding:"7px 11px",fontSize:12.5,cursor:"pointer",fontFamily:"inherit",color:"#40434E"}}>{open?"Hide":"Preview"}</button>
-            </div>
-          </div>
-          {sk.url && <a href={sk.url} target="_blank" rel="noreferrer" style={{fontSize:11.5,color:"#FF6D1F",wordBreak:"break-all"}}>{sk.url}</a>}
-          {open && <div style={{marginTop:12,background:"#F6F7FB",borderRadius:8,padding:"12px 14px",fontSize:13,lineHeight:1.6,whiteSpace:"pre-wrap"}}>
-            {skuAnswer(sk,all).split("\n").map((ln,i)=>{const p=ln.split("**");return <div key={i} style={{minHeight:ln?undefined:8}}>{p.map((x,j)=>j%2?<b key={j}>{x}</b>:<span key={j}>{x.replace(/_/g,"")}</span>)}</div>;})}
-          </div>}
-        </div>);
-      })}
-    </React.Fragment>
-  );
-}
-
-function ProductEditor({sku,all,onCancel,onSave,onDelete}){
-  const [f,setF]=useState(JSON.parse(JSON.stringify(sku)));
-  const set=(k,v)=>setF(p=>({...p,[k]:v}));
-  const setV=(i,k,v)=>setF(p=>({...p,variants:p.variants.map((vv,j)=>j===i?{...vv,[k]:v===""?null:Number(v)}:vv)}));
-  const setVs=(i,k,v)=>setF(p=>({...p,variants:p.variants.map((vv,j)=>j===i?{...vv,[k]:v}:vv)}));
-  const addV=()=>setF(p=>({...p,variants:[...p.variants,{size:"New",neckMin:0,neckMax:0,chestMin:0,chestMax:0,lengthMin:null,lengthMax:null,weightMin:null,weightMax:null}]}));
-  const rmV=i=>setF(p=>({...p,variants:p.variants.filter((_,j)=>j!==i)}));
-  const toggleEx=g=>setF(p=>({...p,excludeGroups:p.excludeGroups.includes(g)?p.excludeGroups.filter(x=>x!==g):[...p.excludeGroups,g]}));
-  const lbl={fontSize:10.5,letterSpacing:"0.05em",textTransform:"uppercase",color:"#676879",fontWeight:600,display:"block",marginBottom:3};
-  const inp={fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:600,padding:"6px 7px",borderRadius:6,border:"1.5px solid #E6E9EF",width:"100%",boxSizing:"border-box"};
-  const tinp={...inp,fontFamily:"inherit",fontWeight:500};
-  const card={background:"#fff",borderRadius:8,border:"1.5px solid #FF6D1F",padding:16,marginBottom:12};
-  const num=(i,k)=><input type="number" step="0.5" value={f.variants[i][k]==null?"":f.variants[i][k]} onChange={e=>setV(i,k,e.target.value)} style={inp}/>;
-  return (
-    <section style={card}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-        <h3 style={{margin:0,fontSize:15}}>{sku.name?"Edit product":"New product"}</h3>
-        <button onClick={onCancel} style={{border:"1px solid #E6E9EF",background:"#fff",borderRadius:7,padding:"4px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit",color:"#676879"}}>Cancel</button>
-      </div>
-      <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
-        <div style={{flex:2,minWidth:180}}><span style={lbl}>Product name</span><input value={f.name} onChange={e=>set("name",e.target.value)} placeholder="HUFT Xplorers Harness" style={tinp}/></div>
-        <div style={{flex:1,minWidth:110}}><span style={lbl}>Type</span><select value={f.type} onChange={e=>set("type",e.target.value)} style={{...tinp}}><option value="harness">harness</option><option value="collar">collar</option><option value="apparel">apparel</option></select></div>
-      </div>
-      <div style={{marginBottom:10}}><span style={lbl}>Shopify URL</span><input value={f.url} onChange={e=>set("url",e.target.value)} placeholder="https://headsupfortails.com/products/…" style={tinp}/></div>
-      <div style={{marginBottom:10}}><span style={lbl}>Positioning notes (shown in the answer)</span><input value={f.notes} onChange={e=>set("notes",e.target.value)} placeholder="No-pull functional harness; best for dogs that pull." style={tinp}/></div>
-      <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:12,alignItems:"center"}}>
-        <label style={{display:"flex",gap:6,alignItems:"center",fontSize:13,cursor:"pointer"}}><input type="checkbox" checked={f.pullFocus} onChange={e=>set("pullFocus",e.target.checked)}/> No-pull / for strong pullers</label>
-        <span style={{fontSize:12.5,color:"#676879"}}>Exclude buckets:</span>
-        {["X-Small","Toy","Giant"].map(g=><button key={g} onClick={()=>toggleEx(g)} style={{padding:"4px 11px",borderRadius:999,fontSize:11.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:f.excludeGroups.includes(g)?"1.5px solid #E2445C":"1.5px solid #E6E9EF",background:f.excludeGroups.includes(g)?"#FCE9EC":"#fff",color:f.excludeGroups.includes(g)?"#E2445C":"#676879"}}>{g}</button>)}
-      </div>
-      <span style={lbl}>Size variants (cm, kg)</span>
-      <div style={{overflowX:"auto"}}>
-        <table style={{borderCollapse:"collapse",width:"100%",minWidth:640,fontSize:12}}>
-          <thead><tr style={{textAlign:"left",color:"#676879"}}>
-            {["Size","Neck min","Neck max","Chest min","Chest max","Len min","Len max","Wt min","Wt max",""].map(h=><th key={h} style={{padding:"4px 5px",fontWeight:600,fontSize:10.5,textTransform:"uppercase"}}>{h}</th>)}
-          </tr></thead>
-          <tbody>
-            {f.variants.map((v,i)=>(
-              <tr key={i}>
-                <td style={{padding:"3px 5px",minWidth:80}}><input value={v.size} onChange={e=>setVs(i,"size",e.target.value)} style={tinp}/></td>
-                <td style={{padding:"3px 5px"}}>{num(i,"neckMin")}</td><td style={{padding:"3px 5px"}}>{num(i,"neckMax")}</td>
-                <td style={{padding:"3px 5px"}}>{num(i,"chestMin")}</td><td style={{padding:"3px 5px"}}>{num(i,"chestMax")}</td>
-                <td style={{padding:"3px 5px"}}>{num(i,"lengthMin")}</td><td style={{padding:"3px 5px"}}>{num(i,"lengthMax")}</td>
-                <td style={{padding:"3px 5px"}}>{num(i,"weightMin")}</td><td style={{padding:"3px 5px"}}>{num(i,"weightMax")}</td>
-                <td style={{padding:"3px 5px"}}>{f.variants.length>1 && <button onClick={()=>rmV(i)} style={{border:"none",background:"transparent",color:"#E2445C",cursor:"pointer",fontSize:15}}>×</button>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <button onClick={addV} style={{marginTop:8,border:"1px dashed #C3C6D4",background:"#fff",borderRadius:7,padding:"6px 14px",fontSize:12.5,cursor:"pointer",fontFamily:"inherit",color:"#676879"}}>+ Add size</button>
-      <div style={{display:"flex",gap:8,marginTop:14,flexWrap:"wrap"}}>
-        <button onClick={()=>{ if(!f.name.trim()){alert("Name required");return;} onSave(f); }} style={{background:"#FF6D1F",color:"#fff",border:"none",borderRadius:8,padding:"9px 20px",fontWeight:600,fontSize:13.5,cursor:"pointer",fontFamily:"inherit"}}>Save product</button>
-        {sku.name && <button onClick={()=>{ if(window.confirm("Delete this product?")) onDelete(f.id); }} style={{border:"1px solid #F0A6B4",background:"#fff",color:"#E2445C",borderRadius:8,padding:"9px 16px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Delete</button>}
-      </div>
-      <div style={{marginTop:14,background:"#F6F7FB",borderRadius:8,padding:"12px 14px",fontSize:13,lineHeight:1.6,whiteSpace:"pre-wrap"}}>
-        <div style={{fontSize:10.5,textTransform:"uppercase",letterSpacing:"0.05em",color:"#676879",marginBottom:6,fontWeight:600}}>Live preview</div>
-        {skuAnswer(f,all).split("\n").map((ln,i)=>{const p=ln.split("**");return <div key={i} style={{minHeight:ln?undefined:8}}>{p.map((x,j)=>j%2?<b key={j}>{x}</b>:<span key={j}>{x.replace(/_/g,"")}</span>)}</div>;})}
-      </div>
-    </section>
-  );
-}
-
 function AskTab({all}){
   const [msgs,setMsgs]=useState([{role:"bot",text:"Hi! I'm the HUFT Fit engine. Ask me anything about the "+all.length+" breeds in the database — sizes, fit, behaviour, regions, materials. I answer only from the portal's data, with confidence tiers attached."}]);
   const [input,setInput]=useState("");
@@ -1363,6 +1101,414 @@ function AuthGate(){
   return <App onLogout={()=>{ store.set(AUTH_KEY,false); setAuthed(false); }}/>;
 }
 
+
+/* ================= SIZE RECOMMENDATIONS (regenerated from sales + returns) ========= */
+const S_MONO={fontFamily:"'IBM Plex Mono', ui-monospace, Menlo, monospace"};
+function keepColour(k){ return k==null?"#9699A6" : k>=90?"#00A25B" : k>=85?"#C58A16" : "#D83A52"; }
+/* A chart is either a deck size chart (flat arrays: back / girth / neck / bottom)
+   or an Odoo gear chart (min-max ranges + strap / leash length). These two helpers
+   are the only place that difference is handled. */
+const DRIVER={neck:"neck",girth:"chest girth",back:"back length",strap:"strap width"};
+const CAT_GROUPS={
+  "Clothing":["Raincoat","Sweater","Sweatshirt","T-Shirt","Kurta","Shirt","Sherwani","Jacket","Dress"],
+  "Collars, Leashes & Harnesses":["Collar","Leash","Harness","Leash & Harness","Collar & Leash"],
+  "Accessories":["Bandana"]
+};
+function groupOfCat(c){ for(const g in CAT_GROUPS) if(CAT_GROUPS[g].includes(c)) return g; return "Other"; }
+function chartVal(chart,k,i,unit){ return (chart&&chart[k]&&chart[k][i]!=null) ? chart[k][i]+" "+(unit||"cm") : null; }
+function chartRng(chart,lo,hi,i){
+  if(!chart||!chart[lo]||chart[lo][i]==null) return null;
+  const a=chart[lo][i], b=chart[hi]?chart[hi][i]:null;
+  return (b!=null&&b!==a) ? a+"–"+b+" cm" : a+" cm";
+}
+function chartDims(chart,i){
+  if(!chart||i==null) return null;
+  const one=(k,u)=>chartVal(chart,k,i,u), rng=(a,b)=>chartRng(chart,a,b,i);
+  if(chart.src==="deck chart")
+    return {"back":one("back"),"chest":one("girth"),"neck":one("neck"),"bottom":one("bottom")};
+  return {"back":one("back"),"chest (adjusts)":rng("girthMin","girthMax"),
+          "neck (adjusts)":rng("neckMin","neckMax"),
+          "strap width":one("strap"),"leash length":one("leashLen")};
+}
+function chartCols(chart){
+  if(!chart) return [];
+  const one=k=>(i=>chartVal(chart,k,i)), rng=(a,b)=>(i=>chartRng(chart,a,b,i));
+  const cols = chart.src==="deck chart"
+    ? [["Back",one("back")],["Chest",one("girth")],["Neck",one("neck")],["Bottom",one("bottom")]]
+    : [["Back",one("back")],["Chest (adjusts)",rng("girthMin","girthMax")],
+       ["Neck (adjusts)",rng("neckMin","neckMax")],["Strap width",one("strap")],
+       ["Leash length",one("leashLen")]];
+  return cols.filter(([,f])=>chart.sizes.some((_,k)=>f(k)!=null));
+}
+function downloadCSV(rows,fname){
+  const esc=v=>{ const t=v==null?"":String(v); return /[",\n]/.test(t)?'"'+t.replace(/"/g,'""')+'"':t; };
+  const csv="\ufeff"+rows.map(r=>r.map(esc).join(",")).join("\n");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8;"}));
+  a.download=fname; a.click(); URL.revokeObjectURL(a.href);
+}
+/* ============ CHECK A FIT — the customer-facing flow ============
+   breed → product → build → size, then straight back to product for the next one. */
+function CheckFitTab({onSwitchToCatalog}){
+  const [step,setStep]   = React.useState(1);
+  const [breed,setBreed] = React.useState("");
+  const [bq,setBq]       = React.useState("");
+  const [cat,setCat]     = React.useState("");
+  const [prod,setProd]   = React.useState("");
+  const [pq,setPq]       = React.useState("");
+  const [build,setBuild] = React.useState("");
+
+  const breeds = Object.keys(BREED_FIT||{}).sort();
+  const cats   = Object.keys(PRODUCT_CHARTS||{}).sort();
+  const shownBreeds = bq.trim()
+    ? breeds.filter(b=>b.toLowerCase().includes(bq.trim().toLowerCase()))
+    : breeds;
+  const allProds = cat ? Object.keys(PRODUCT_CHARTS[cat]||{}).sort() : [];
+  const shownProds = pq.trim()
+    ? allProds.filter(p=>p.toLowerCase().includes(pq.trim().toLowerCase()))
+    : allProds;
+  const chart = (cat&&prod) ? (PRODUCT_CHARTS[cat]||{})[prod] : null;
+  const rec   = (cat&&prod) ? (((PRODUCT_RECS[cat]||{})[prod]||{})[breed]) : null;
+
+  const card={background:"#fff",borderRadius:10,border:"1px solid #E6E9EF",padding:18,marginBottom:12};
+  const sel={padding:"11px 12px",borderRadius:8,border:"1.5px solid #C3C6D4",fontFamily:"inherit",fontSize:14,background:"#fff",width:"100%",boxSizing:"border-box"};
+  const pill=(active)=>({padding:"8px 15px",borderRadius:999,border:active?"1.5px solid #FF6D1F":"1.5px solid #E6E9EF",
+    background:active?"#FF6D1F":"#fff",color:active?"#fff":"#40434E",fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"inherit"});
+
+  const STEPS=[[1,"Breed"],[2,"Product"],[3,"Build"],[4,"Size"]];
+  const reset=()=>{setStep(1);setBreed("");setCat("");setProd("");setBuild("");setBq("");setPq("");};
+  const anotherProduct=()=>{setStep(2);setCat("");setProd("");setBuild("");setPq("");};
+
+  return (<>
+    <section style={{...card,paddingBottom:14}}>
+      <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:10}}>
+        {STEPS.map(([n,l],z)=>(
+          <React.Fragment key={n}>
+            <button onClick={()=>{ if(n<step) setStep(n); }} disabled={n>=step}
+              style={{display:"flex",alignItems:"center",gap:6,border:"none",background:"none",padding:0,
+                      cursor:n<step?"pointer":"default",fontFamily:"inherit"}}>
+              <span style={{width:22,height:22,borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",
+                fontSize:11.5,fontWeight:700,background:n<=step?"#FF6D1F":"#E6E9EF",color:n<=step?"#fff":"#9699A6"}}>{n}</span>
+              <span style={{fontSize:12.5,fontWeight:n===step?700:500,color:n<=step?"#323338":"#9699A6"}}>{l}</span>
+            </button>
+            {z<STEPS.length-1 && <span style={{color:"#D8DBE4",fontSize:12}}>›</span>}
+          </React.Fragment>
+        ))}
+        <button onClick={reset} style={{marginLeft:"auto",background:"none",border:"none",color:"#0073EA",cursor:"pointer",fontFamily:"inherit",fontSize:12.5,padding:0}}>start over</button>
+      </div>
+      <div style={{fontSize:12,color:"#676879"}}>
+        {breed && <b>{breed}</b>}{breed&&prod?" · ":""}{prod}
+        {!breed && "Answer three questions and we'll give you the size."}
+      </div>
+    </section>
+
+    {/* ---- 1. breed ---- */}
+    {step===1 && <section style={card}>
+      <div style={{fontWeight:700,fontSize:16,marginBottom:3}}>What breed is your dog?</div>
+      <div style={{fontSize:12.5,color:"#676879",marginBottom:12}}>Pick the closest match. For a mixed breed, choose the breed they most resemble in size.</div>
+      <input value={bq} onChange={e=>setBq(e.target.value)} placeholder={`Type to search ${breeds.length} breeds…`} style={{...sel,marginBottom:12}}/>
+      <div style={{display:"flex",gap:7,flexWrap:"wrap",maxHeight:300,overflowY:"auto"}}>
+        {shownBreeds.map(b=>(
+          <button key={b} onClick={()=>{setBreed(b);setStep(2);}} style={pill(false)}>{b}</button>
+        ))}
+        {shownBreeds.length===0 && <div style={{fontSize:13,color:"#9699A6"}}>No breed matches “{bq}”.</div>}
+      </div>
+    </section>}
+
+    {/* ---- 2. product ---- */}
+    {step===2 && <section style={card}>
+      <div style={{fontWeight:700,fontSize:16,marginBottom:3}}>What are you buying for your {breed}?</div>
+      <div style={{fontSize:12.5,color:"#676879",marginBottom:12}}>Choose the type first, then the exact product.</div>
+      <div style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:14}}>
+        {cats.map(c=>(
+          <button key={c} onClick={()=>{setCat(c);setProd("");setPq("");}} style={pill(cat===c)}>{c}</button>
+        ))}
+      </div>
+      {cat && <>
+        {allProds.length>12 && <input value={pq} onChange={e=>setPq(e.target.value)} placeholder={`Search ${allProds.length} ${cat.toLowerCase()} products…`} style={{...sel,marginBottom:10}}/>}
+        <div style={{maxHeight:320,overflowY:"auto",border:"1px solid #EAECF2",borderRadius:8}}>
+          {shownProds.map(p=>{
+            const has=(((PRODUCT_RECS[cat]||{})[p]||{})[breed]);
+            return (
+            <button key={p} onClick={()=>{setProd(p);setStep(3);}} disabled={!has}
+              style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",width:"100%",
+                padding:"11px 14px",border:"none",borderBottom:"1px solid #EAECF2",background:"#fff",
+                cursor:has?"pointer":"default",fontFamily:"inherit",fontSize:13.5,textAlign:"left",
+                color:has?"#323338":"#B6B9C6"}}>
+              <span>{p}</span>
+              <span style={{fontSize:11.5,color:"#9699A6",whiteSpace:"nowrap"}}>{has?"→":"no size data"}</span>
+            </button>);
+          })}
+          {shownProds.length===0 && <div style={{padding:14,fontSize:13,color:"#9699A6"}}>No product matches “{pq}”.</div>}
+        </div>
+      </>}
+    </section>}
+
+    {/* ---- 3. build ---- */}
+    {step===3 && <section style={card}>
+      <div style={{fontWeight:700,fontSize:16,marginBottom:3}}>How would you describe your {breed}’s build? 🐾</div>
+      <div style={{fontSize:12.5,color:"#676879",marginBottom:14}}>Same breed, different dogs — this is the one thing we can’t know.</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10}}>
+        {[["lean","🏃","Lean","Ribs easy to feel, tucked waist"],
+          ["average","⚖️","Average","Typical for the breed"],
+          ["broad","🍖","Broad & sturdy","Deep chest, heavy set, or a thick winter coat"]].map(([v,ic,l,d])=>(
+          <button key={v} onClick={()=>{setBuild(v);setStep(4);}}
+            style={{padding:"16px 14px",borderRadius:10,border:"1.5px solid #E6E9EF",background:"#fff",
+                    cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
+            <div style={{fontSize:24}}>{ic}</div>
+            <div style={{fontWeight:700,fontSize:14.5,margin:"5px 0 2px"}}>{l}</div>
+            <div style={{fontSize:11.5,color:"#676879",lineHeight:1.45}}>{d}</div>
+          </button>
+        ))}
+      </div>
+      <button onClick={()=>setStep(2)} style={{marginTop:12,background:"none",border:"none",color:"#0073EA",cursor:"pointer",fontFamily:"inherit",fontSize:12.5,padding:0}}>← pick a different product</button>
+    </section>}
+
+    {/* ---- 4. the answer ---- */}
+    {step===4 && (()=>{
+      if(!rec) return <section style={card}><p style={{margin:0,color:"#9699A6"}}>We don’t have enough data for this combination yet.</p></section>;
+      const [i,j]=rec;
+      const k = build==="broad" ? j : i;
+      const size = chart.sizes[k];
+      const topOut = build==="broad" && j===i;
+      return (<>
+        <section style={{...card,background:"#FEF1E5",border:"1.5px solid #FF6D1F",textAlign:"center",padding:"26px 18px"}}>
+          <div style={{fontSize:11.5,letterSpacing:"0.07em",textTransform:"uppercase",color:"#BA4511",fontWeight:700}}>Recommended size</div>
+          <div style={{fontSize:52,fontWeight:700,color:"#BA4511",lineHeight:1.1,margin:"4px 0"}}>{size}</div>
+          <div style={{fontSize:13.5,color:"#40434E"}}>for {build==="average"?"an average":build==="broad"?"a broad & sturdy":"a lean"} {breed}</div>
+          <div style={{...S_MONO,fontSize:12,color:"#676879",marginTop:10,lineHeight:1.7}}>
+            {Object.entries(chartDims(chart,k)||{}).filter(([,v])=>v!=null&&v!=="").map(([lbl,v])=><div key={lbl}>{lbl} {v}</div>)}
+          </div>
+          <div style={{fontSize:12,color:"#676879",marginTop:12,maxWidth:440,margin:"12px auto 0"}}>{prod}</div>
+          {topOut && <div style={{fontSize:12,color:"#C58A16",marginTop:8}}>This is the largest size this product is made in.</div>}
+        </section>
+        <section style={card}>
+          <div style={{display:"flex",gap:9,flexWrap:"wrap"}}>
+            <button onClick={anotherProduct} style={{...pill(true),padding:"11px 18px",fontSize:13.5}}>Check another product for {breed}</button>
+            <button onClick={()=>setStep(3)} style={{...pill(false),padding:"11px 18px",fontSize:13.5}}>Change build</button>
+            <button onClick={reset} style={{...pill(false),padding:"11px 18px",fontSize:13.5}}>Different dog</button>
+          </div>
+          <div style={{fontSize:11.5,color:"#9699A6",marginTop:12,lineHeight:1.6}}>
+            This size is what {breed} owners actually kept — based on {FIT_META.orders.toLocaleString()} orders and {FIT_META.returns.toLocaleString()} returns over {FIT_META.window}. Not calculated from a formula.
+          </div>
+        </section>
+        <section style={card}>
+          <div style={{fontWeight:700,fontSize:14,marginBottom:2}}>Full size chart — {prod}</div>
+          <div style={{fontSize:11.5,color:"#9699A6",marginBottom:8}}>
+            {chart.driver ? <>Sized on <b>{DRIVER[chart.driver]||chart.driver}</b>.</> : <>Sized on <b>back length</b>.</>} Measure your dog and check against the row we picked.
+          </div>
+          <div style={{overflowX:"auto"}}><table style={{borderCollapse:"collapse",fontSize:12.5,width:"100%"}}>
+            <thead><tr>{["Size"].concat(chartCols(chart).map(c=>c[0])).map(h=>
+              <th key={h} style={{textAlign:"left",padding:"6px 10px",borderBottom:"1.5px solid #E6E9EF",color:"#676879",fontWeight:600}}>{h}</th>)}</tr></thead>
+            <tbody>{chart.sizes.map((sz,z)=>(
+              <tr key={sz} style={{background:z===k?"#FEF1E5":"transparent"}}>
+                <td style={{padding:"6px 10px",fontWeight:z===k?700:500}}>
+                  {sz}{z===k?<span style={{fontSize:10,color:"#BA4511",fontWeight:700}}>  ← RECOMMENDED</span>:null}</td>
+                {chartCols(chart).map(([h,f],y)=><td key={y} style={{...S_MONO,padding:"6px 10px",color:"#40434E"}}>{f(z)||"—"}</td>)}
+              </tr>))}</tbody>
+          </table></div>
+        </section>
+      </>);
+    })()}
+  </>);
+}
+
+/* ============ HUFT CATALOG — the internal view. Two ways in. ============
+   1. by product: category → sub-category → every SKU, with breed recommendations + Excel export
+   2. by breed:   breed → every category, with the sales verdict on whether a new size is needed */
+function FitCatalogTab({onAsk}){
+  const [mode,setMode]   = React.useState("product");
+  const [grp,setGrp]     = React.useState("Clothing");
+  const [sub,setSub]     = React.useState("Raincoat");
+  const [pq,setPq]       = React.useState("");
+  const [openP,setOpenP] = React.useState("");
+  const [bFilter,setBFilter] = React.useState("All breeds");
+  const [breed,setBreed] = React.useState("Labrador Retriever");
+
+  const breeds = Object.keys(BREED_FIT||{}).sort();
+  const liveCats = Object.keys(PRODUCT_CHARTS||{});
+  const groups = Object.keys(CAT_GROUPS).filter(g=>CAT_GROUPS[g].some(c=>liveCats.includes(c)));
+  const subs = (CAT_GROUPS[grp]||[]).filter(c=>liveCats.includes(c));
+  const activeSub = subs.includes(sub) ? sub : subs[0];
+  const allProds = Object.keys((PRODUCT_CHARTS||{})[activeSub]||{}).sort();
+  const prods = pq.trim() ? allProds.filter(p=>p.toLowerCase().includes(pq.trim().toLowerCase())) : allProds;
+
+  const card={background:"#fff",borderRadius:10,border:"1px solid #E6E9EF",padding:16,marginBottom:12};
+  const sel={padding:"10px 12px",borderRadius:8,border:"1.5px solid #C3C6D4",fontFamily:"inherit",fontSize:13.5,background:"#fff",minWidth:170};
+  const pill=(a)=>({padding:"7px 14px",borderRadius:999,border:a?"1.5px solid #FF6D1F":"1.5px solid #E6E9EF",
+    background:a?"#FF6D1F":"#fff",color:a?"#fff":"#40434E",fontWeight:600,fontSize:12.5,cursor:"pointer",fontFamily:"inherit"});
+
+  const recRows = (cat,pname)=>{
+    const chart=(PRODUCT_CHARTS[cat]||{})[pname]; const R=((PRODUCT_RECS[cat]||{})[pname]||{});
+    return Object.keys(R).sort()
+      .filter(b=>bFilter==="All breeds"||b===bFilter)
+      .map(b=>{
+        const [i,j]=R[b]; const info=(REC_SALES[b]||{})[cat]||{};
+        return {breed:b,rec:chart.sizes[i],up:chart.sizes[j],i,j,chart,
+                n:info.n,keep:info.keepRate,conf:info.conf,gap:info.gap};
+      });
+  };
+  const exportSub = ()=>{
+    const head=["Category","Product","Applies to SKU","Breed","RECOMMENDED size (lean or average)",
+      "RECOMMENDED size measurements","Size up (broad & sturdy)","Size up measurements",
+      "Kept in 12m (category)","Keep rate % (category)","Confidence","New size needed?","Measurement source"];
+    const fmt=d=>Object.entries(d||{}).filter(([,v])=>v!=null&&v!=="").map(([k,v])=>k+" "+v).join("; ");
+    const out=[head];
+    prods.forEach(p=>{
+      const chart=(PRODUCT_CHARTS[activeSub]||{})[p];
+      recRows(activeSub,p).forEach(r=>out.push([activeSub,p,(chart.skuNames||[]).join(" | "),r.breed,
+        r.rec,fmt(chartDims(chart,r.i)),r.up,fmt(chartDims(chart,r.j)),
+        r.n==null?"":r.n,r.keep==null?"":r.keep,r.conf||"",r.gap||"no",chart.src]));
+    });
+    downloadCSV(out,`HUFT_${activeSub.replace(/[^A-Za-z]/g,"")}_breed_recommendations.csv`);
+  };
+
+  return (<>
+    <section style={{...card,paddingBottom:12}}>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        {[["product","📦  By product — every SKU and the breeds it fits"],
+          ["breed","🐕  By breed — every category, and where a size is missing"]].map(([m,l])=>(
+          <button key={m} onClick={()=>setMode(m)} style={{flex:1,minWidth:230,padding:"12px 10px",borderRadius:9,
+            border:mode===m?"1.5px solid #FF6D1F":"1.5px solid #E6E9EF",background:mode===m?"#FEF1E5":"#fff",
+            color:mode===m?"#BA4511":"#40434E",fontWeight:600,fontSize:13.5,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+        ))}
+      </div>
+    </section>
+
+    {/* ================= 1. BY PRODUCT ================= */}
+    {mode==="product" && <>
+      <section style={card}>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
+          <select value={grp} onChange={e=>{setGrp(e.target.value);setSub("");setOpenP("");setPq("");}} style={sel}>
+            {groups.map(g=><option key={g} value={g}>{g}</option>)}
+          </select>
+          <select value={activeSub||""} onChange={e=>{setSub(e.target.value);setOpenP("");setPq("");}} style={sel}>
+            {subs.map(c=><option key={c} value={c}>{c} ({Object.keys(PRODUCT_CHARTS[c]).length})</option>)}
+          </select>
+          <select value={bFilter} onChange={e=>setBFilter(e.target.value)} style={sel}>
+            {["All breeds",...breeds].map(b=><option key={b} value={b}>{b}</option>)}
+          </select>
+          {allProds.length>10 && <input value={pq} onChange={e=>setPq(e.target.value)} placeholder="search SKU…" style={{...sel,minWidth:150}}/>}
+          <button onClick={exportSub} style={{...pill(false),border:"1.5px solid #00A25B",color:"#00753F",fontWeight:700}}>⬇  Download Excel</button>
+        </div>
+        <div style={{fontSize:12,color:"#676879"}}>
+          {prods.length} product{prods.length===1?"":"s"} in {activeSub}
+          {bFilter!=="All breeds" && <> · showing {bFilter} only</>}
+          {" "}· the download gives you every breed × SKU row for {activeSub} with all measurements.
+        </div>
+      </section>
+
+      {prods.map(p=>{
+        const chart=(PRODUCT_CHARTS[activeSub]||{})[p];
+        const rows=recRows(activeSub,p);
+        const open=openP===p;
+        return (
+        <section key={p} style={{...card,padding:0,overflow:"hidden"}}>
+          <button onClick={()=>setOpenP(open?"":p)} style={{display:"flex",justifyContent:"space-between",gap:10,
+            alignItems:"center",width:"100%",padding:"13px 16px",border:"none",background:open?"#FEF1E5":"#fff",
+            cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
+            <span>
+              <span style={{fontWeight:700,fontSize:14,color:"#323338"}}>{p}</span>
+              <span style={{display:"block",fontSize:11.5,color:"#9699A6",marginTop:2}}>
+                {chart.sizes.length} sizes: {chart.sizes.join(" · ")} — from {chart.src}
+              </span>
+            </span>
+            <span style={{fontSize:12,color:"#676879",whiteSpace:"nowrap"}}>{rows.length} breeds {open?"▾":"▸"}</span>
+          </button>
+          {open && <div style={{padding:"0 16px 16px"}}>
+            {(chart.skuNames||[]).length>0 && <div style={{fontSize:11.5,color:"#9699A6",padding:"8px 0"}}>Applies to: {chart.skuNames.join(", ")}</div>}
+            <div style={{overflowX:"auto"}}><table style={{borderCollapse:"collapse",fontSize:12.5,width:"100%"}}>
+              <thead><tr>{["Breed","RECOMMENDED size","Measurements","Size up (broad & sturdy)","Kept 12m","Keep rate","New size needed?"].map(h=>
+                <th key={h} style={{textAlign:"left",padding:"7px 9px",borderBottom:"1.5px solid #E6E9EF",color:"#676879",fontWeight:600,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+              <tbody>{rows.map(r=>(
+                <tr key={r.breed} style={{borderBottom:"1px solid #F2F3F7"}}>
+                  <td style={{padding:"7px 9px",fontWeight:600}}>{r.breed}</td>
+                  <td style={{padding:"7px 9px",fontWeight:700,color:"#BA4511"}}>{r.rec}</td>
+                  <td style={{...S_MONO,padding:"7px 9px",color:"#676879",fontSize:11.5}}>
+                    {Object.entries(chartDims(r.chart,r.i)||{}).filter(([,v])=>v!=null&&v!=="").map(([k,v])=>k+" "+v).join(" · ")}</td>
+                  <td style={{padding:"7px 9px"}}>{r.up===r.rec?<span style={{color:"#9699A6"}}>largest size</span>:r.up}</td>
+                  <td style={{...S_MONO,padding:"7px 9px",color:"#676879"}}>{r.n!=null?r.n.toLocaleString():"—"}</td>
+                  <td style={{...S_MONO,padding:"7px 9px",color:keepColour(r.keep),fontWeight:600}}>{r.keep!=null?r.keep+"%":"—"}</td>
+                  <td style={{padding:"7px 9px",color:r.gap?"#D83A52":"#9699A6"}}>{r.gap||"no"}</td>
+                </tr>))}</tbody>
+            </table></div>
+            {rows.length===0 && <p style={{fontSize:13,color:"#9699A6"}}>No breed has enough sales evidence for this product yet.</p>}
+          </div>}
+        </section>);
+      })}
+      {prods.length===0 && <section style={card}><p style={{margin:0,color:"#9699A6"}}>No product matches “{pq}”.</p></section>}
+    </>}
+
+    {/* ================= 2. BY BREED ================= */}
+    {mode==="breed" && (()=>{
+      const f=BREED_FIT[breed];
+      const bySize=REC_SALES[breed]||{};
+      const cats=Object.keys(bySize).sort();
+      const gaps=cats.filter(c=>bySize[c].gap);
+      const exportBreed=()=>{
+        const out=[["Breed","Category","RECOMMENDED size","Size up (broad & sturdy)","Kept in 12m","Keep rate %","Confidence","New size needed?"]];
+        cats.forEach(c=>{const r=bySize[c];
+          out.push([breed,c,r.base,(r.pair||[]).filter(s=>s!==r.base)[0]||"",r.n,r.keepRate==null?"":r.keepRate,r.conf,r.gap||"no"]);});
+        downloadCSV(out,`HUFT_${breed.replace(/[^A-Za-z]/g,"")}_by_category.csv`);
+      };
+      return (<>
+        <section style={card}>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+            <select value={breed} onChange={e=>setBreed(e.target.value)} style={{...sel,minWidth:220}}>
+              {breeds.map(b=><option key={b} value={b}>{b}</option>)}
+            </select>
+            <button onClick={exportBreed} style={{...pill(false),border:"1.5px solid #00A25B",color:"#00753F",fontWeight:700}}>⬇  Download Excel</button>
+            {onAsk && <button onClick={()=>onAsk(breed)} style={pill(false)}>💬  Ask about {breed}</button>}
+          </div>
+          {f && <div style={{fontSize:12.5,color:"#676879",marginTop:9}}>
+            {f.orders.toLocaleString()} orders · {f.returnPct!=null?f.returnPct+"% returned":"—"} · sizing evidence: {f.lean}
+          </div>}
+        </section>
+
+        <section style={{...card,borderLeft:gaps.length?"4px solid #D83A52":"4px solid #00A25B"}}>
+          <div style={{fontWeight:700,fontSize:14.5,marginBottom:3}}>Do we need a new size for {breed}?</div>
+          {gaps.length===0
+            ? <p style={{margin:0,fontSize:13,color:"#00753F"}}>No. Across all {cats.length} categories, an existing size is kept often enough that the range works for this breed.</p>
+            : <div style={{display:"grid",gap:8,marginTop:6}}>
+                {gaps.map(c=>(
+                  <div key={c} style={{background:"#FFF5F5",borderRadius:8,padding:"11px 13px"}}>
+                    <div style={{fontWeight:700,fontSize:13.5}}>{c} — {bySize[c].gap}</div>
+                    <div style={{fontSize:12,color:"#40434E",marginTop:3}}>
+                      Best available size is <b>{bySize[c].base}</b>, kept {bySize[c].keepRate}% of the time across {bySize[c].n.toLocaleString()} purchases.
+                    </div>
+                  </div>))}
+              </div>}
+          <div style={{fontSize:11.5,color:"#9699A6",marginTop:10,lineHeight:1.6}}>
+            Read from what customers kept and returned, not from body measurements. A category is flagged when even the best-performing size comes back too often for the recommendation to fix it.
+          </div>
+        </section>
+
+        <section style={card}>
+          <div style={{fontWeight:700,fontSize:14.5,marginBottom:8}}>Every category — recommended size for {breed}</div>
+          <div style={{overflowX:"auto"}}><table style={{borderCollapse:"collapse",fontSize:12.5,width:"100%"}}>
+            <thead><tr>{["Category","RECOMMENDED size","Size up (broad & sturdy)","Kept 12m","Keep rate","Confidence","New size needed?"].map(h=>
+              <th key={h} style={{textAlign:"left",padding:"7px 9px",borderBottom:"1.5px solid #E6E9EF",color:"#676879",fontWeight:600,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+            <tbody>{cats.map(c=>{const r=bySize[c]; const up=(r.pair||[]).filter(s=>s!==r.base)[0];
+              return (
+              <tr key={c} style={{borderBottom:"1px solid #F2F3F7"}}>
+                <td style={{padding:"7px 9px",fontWeight:600}}>{c}</td>
+                <td style={{padding:"7px 9px",fontWeight:700,color:"#BA4511"}}>{r.base}</td>
+                <td style={{padding:"7px 9px"}}>{up||<span style={{color:"#9699A6"}}>—</span>}</td>
+                <td style={{...S_MONO,padding:"7px 9px",color:"#676879"}}>{r.n.toLocaleString()}</td>
+                <td style={{...S_MONO,padding:"7px 9px",color:keepColour(r.keepRate),fontWeight:600}}>{r.keepRate!=null?r.keepRate+"%":"—"}</td>
+                <td style={{padding:"7px 9px",color:"#676879"}}>{r.conf}</td>
+                <td style={{padding:"7px 9px",color:r.gap?"#D83A52":"#9699A6"}}>{r.gap||"no"}</td>
+              </tr>);})}</tbody>
+          </table></div>
+          <div style={{fontSize:11.5,color:"#9699A6",marginTop:9}}>
+            These are category-level sizes. For the size on one specific SKU, switch to <b>By product</b> — collars and harnesses in particular differ from each other.
+          </div>
+        </section>
+      </>);
+    })()}
+  </>);
+}
+
 function App({onLogout}){
   const [tab,setTab]=useState("home");
   const [ptype,setPtype]=useState("harness");
@@ -1373,10 +1519,6 @@ function App({onLogout}){
   const [width,setWidth]=useState(2.5);
   const [fitCat,setFitCat]=useState("All");
   const [fitSub,setFitSub]=useState("All");
-  const [fitMode,setFitMode]=useState("breed");
-  const [fitBreed,setFitBreed]=useState("");
-  const [fitView,setFitView]=useState("customer");
-  const [fitBody,setFitBody]=useState("");
   const [easeAdj,setEaseAdj]=useState({});
   const [ratioAdj,setRatioAdj]=useState({});
   const [drillSub,setDrillSub]=useState("Raincoat");
@@ -1521,7 +1663,7 @@ function App({onLogout}){
   }).sort((a,z)=>a.pct-z.pct),[saved,ALL]);
   const gaps=coverage.filter(c=>c.grade==="none"||c.grade==="partial");
 
-  const NAVITEMS=[["home","⌂","Home"],["fit","⚖","Fit checker"],["catalog","📚","HUFT Catalog"],["library","📖","Knowledge base"],["feedback","📝","Feedback"]];
+  const NAVITEMS=[["home","⌂","Home"],["fit","📏","Check a fit"],["catalog","📚","HUFT Catalog"],["library","📖","Knowledge base"],["feedback","📝","Feedback"]];
   const card={background:"#fff",borderRadius:8,border:"1px solid #E6E9EF",padding:16,marginBottom:12};
 
   return (
@@ -1572,8 +1714,8 @@ function App({onLogout}){
 
         {/* ===== HOME ===== */}
         {tab==="home" && <>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))",gap:10,marginBottom:12}}>
-            {[["fit","📏","Check a fit","Enter product dimensions, see which breeds it serves"],["catalog","📚","HUFT Catalog","Browse all products, add new ones"],["library","📖","Knowledge base","All measurements, care & behaviour data per breed"]].map(([k,ic,t,d])=>(
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(240px, 1fr))",gap:12,marginBottom:12}}>
+            {[["fit","📏","Check a fit","What a customer sees. Breed, product, build — then the size."],["catalog","📚","HUFT Catalog","Every SKU and the breeds it fits, or every breed and where a size is missing"]].map(([k,ic,t,d])=>(
               <button key={k} onClick={()=>setTab(k)} style={{textAlign:"left",background:"#fff",border:"1.5px solid #E6E9EF",borderRadius:8,padding:"16px 14px",cursor:"pointer",fontFamily:"inherit"}}>
                 <div style={{fontSize:26}}>{ic}</div>
                 <div style={{fontWeight:700,fontSize:14.5,color:"#323338",margin:"6px 0 3px"}}>{t}</div>
@@ -1593,351 +1735,8 @@ function App({onLogout}){
         </>}
 
 
-        {/* ===== FIT CHECKER ===== */}
-        {tab==="fit" && <>
-          <section style={{...card,paddingBottom:12}}>
-            <div style={{display:"flex",gap:8,marginBottom:8}}>
-              {[["breed","🐕  By breed → sizes"],["product","👕  By product → breeds"]].map(([m,l])=>(
-                <button key={m} onClick={()=>setFitMode(m)} style={{flex:1,padding:"11px 8px",borderRadius:8,border:fitMode===m?"1.5px solid #FF6D1F":"1.5px solid #E6E9EF",background:fitMode===m?"#FEF1E5":"#fff",color:fitMode===m?"#BA4511":"#676879",fontWeight:700,fontSize:13.5,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
-              ))}
-            </div>
-            <p style={{fontSize:12,color:"#676879",margin:0}}>{fitMode==="breed"?"Pick a breed — see the size to order in every product category.":"Pick a product — see which breeds it fits."}</p>
-          </section>
-
-          {fitMode==="breed" && <>
-            <section style={card}>
-              <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:10}}>
-                <select value={fitBreed} onChange={e=>setFitBreed(e.target.value)} style={{flex:1,minWidth:200,boxSizing:"border-box",padding:"11px 12px",borderRadius:8,border:"1.5px solid #C3C6D4",fontSize:14,fontFamily:"inherit",background:"#fff"}}>
-                  <option value="">— Select a breed —</option>
-                  {ALL.map(b=><option key={b.name} value={b.name}>{b.name}</option>)}
-                </select>
-                <div style={{display:"inline-flex",border:"1.5px solid #E6E9EF",borderRadius:8,overflow:"hidden"}}>
-                  {[["customer","Customer"],["internal","Internal"]].map(([v,l])=>(
-                    <button key={v} onClick={()=>setFitView(v)} style={{padding:"9px 14px",border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:12.5,fontWeight:600,background:fitView===v?"#323338":"#fff",color:fitView===v?"#F6C445":"#676879"}}>{l}</button>
-                  ))}
-                </div>
-              </div>
-              {fitBreed && (()=>{
-                const b=ALL.find(x=>x.name===fitBreed);
-                const rec=(typeof REC_MATRIX!=="undefined")?REC_MATRIX[fitBreed]:null;
-                const bl=(b&&b.care&&b.care.bodyLen)||(b&&b.height);
-                return (
-                  <div style={{marginTop:14}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:4}}>
-                      <span style={{fontWeight:700,fontSize:16}}>{fitBreed}</span>
-                      {b && <SalesBadge b={b}/>}
-                    </div>
-                    {b && <div style={{...MONO,fontSize:11.5,color:"#9699A6",marginBottom:14}}>neck {b.neck[0]}–{b.neck[1]} · chest {b.chest[0]}–{b.chest[1]}{bl?` · body ${bl[0]}–${bl[1]}`:""} cm</div>}
-                    {!rec ? <p style={{color:"#9699A6",fontSize:13}}>No size recommendation for this breed yet — it isn't in the sales-mapped set.</p>
-                    : (fitView==="customer" && !fitBody) ? (
-                      <div style={{background:"#FEF7ED",border:"1.5px solid #FFD9A8",borderRadius:10,padding:"16px"}}>
-                        <div style={{fontWeight:700,fontSize:15,marginBottom:3}}>One quick question about your {fitBreed} 🐾</div>
-                        <div style={{fontSize:12.5,color:"#676879",marginBottom:12}}>This fine-tunes the size for your specific dog.</div>
-                        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(190px,1fr))",gap:8}}>
-                          {[["down","🏃  Lean · very active · eats less","Smaller size in the range"],["base","⚖️  Average build & appetite","Either size in the range fits"],["up","🍖  Chubby · less active · eats more","Larger size in the range"]].map(([v,l,s])=>(
-                            <button key={v} onClick={()=>setFitBody(v)} style={{textAlign:"left",padding:"12px 13px",borderRadius:9,border:"1.5px solid #E6E9EF",background:"#fff",cursor:"pointer",fontFamily:"inherit"}}>
-                              <div style={{fontWeight:600,fontSize:13,color:"#323338"}}>{l}</div>
-                              <div style={{fontSize:11,color:"#9699A6",marginTop:3}}>{s}</div>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (<>
-                      {fitView==="customer" && <div style={{fontSize:12,color:"#676879",marginBottom:10}}>Sizes for a <b>{fitBody==="down"?"lean / very active":fitBody==="up"?"heavier / less-active":"average-build"}</b> {fitBreed} — <span onClick={()=>setFitBody("")} style={{color:"#BA4511",cursor:"pointer",textDecoration:"underline"}}>change answer</span></div>}
-                      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(190px, 1fr))",gap:8}}>
-                        {REC_PRODUCTS.map(p=>{const rc=rec[p]; const isSales=rc&&rc.src==="sales"; const internal=fitView==="internal";
-                          const pair=rc?[...new Set(rc.pair)]:["—"];
-                          // Customer sees ONE size — the answer resolves the pair: lean->smaller, chubby->larger, average->best.
-                          const pick = !rc?"—":(fitBody==="down"?pair[0]:fitBody==="up"?pair[pair.length-1]:rc.base);
-                          const dimSize = internal ? (rc?rc.base:null) : (pick!=="—"?pick:null);
-                          const drows = (b&&dimSize) ? garmentDims(p, dimSize, b, easeAdj, ratioAdj) : [];
-                          const models = (p==="Raincoat" && b) ? raincoatPerModel(b, easeAdj) : [];
-                          const wide = p==="Raincoat" && models.length>0;
-                          return (
-                          <div key={p} style={{background:"#F5F6F8",borderRadius:8,padding:"10px 12px",borderTop:isSales?"3px solid #00A25B":"3px solid #E6E9EF",gridColumn:wide?"1 / -1":"auto"}}>
-                            <div style={{...MONO,fontSize:10,color:"#9699A6",textTransform:"uppercase",letterSpacing:"0.05em"}}>{p}</div>
-                            {internal ? <>
-                              <div style={{display:"flex",gap:5,marginTop:5}}>
-                                {pair.map((s,idx)=> s?(
-                                  <div key={idx} style={{flex:1,background:s===rc.base?"#FEF1E5":"#fff",border:s===rc.base?"1.5px solid #FFBE92":"1px solid #E6E9EF",borderRadius:6,padding:"5px 3px",textAlign:"center"}}>
-                                    <div style={{fontWeight:700,fontSize:15,color:s===rc.base?"#BA4511":"#565A6E"}}>{s}</div>
-                                    <div style={{...MONO,fontSize:8.5,color:"#9699A6"}}>{(rc.cm&&rc.cm[s])||""}</div>
-                                    {isSales && rc.share&&rc.share[s]!=null && <div style={{fontSize:8,color:"#00854D"}}>{Math.round(rc.share[s]*100)}%</div>}
-                                  </div>):null)}
-                              </div>
-                              {rc&&rc.dog && <div style={{...MONO,fontSize:9.5,color:"#9699A6",marginTop:4}}>dog {rc.dog} · ease {rc.ease} {rc.m}</div>}
-                              {isSales ? <div style={{fontSize:9.5,color:"#00854D",marginTop:3,lineHeight:1.3}}>✓ both confirmed across {rc.n.toLocaleString()} sales</div>
-                                : <div style={{fontSize:9.5,color:"#9699A6",marginTop:3}}>fit-estimated (thin sales)</div>}
-                              {rc&&rc.note==="max" && <div style={{fontSize:9,color:"#BA4511",marginTop:2}}>⚠ largest size made — may run small for this breed</div>}
-                              {rc&&rc.note==="min" && <div style={{fontSize:9,color:"#BA4511",marginTop:2}}>⚠ smallest size made — may run big for this breed</div>}
-                              {wide ? <ModelRows models={models} showSrc={true}/> : <DimRows rows={drows} size={dimSize} showSrc={true}/>}
-                            </> : (<>
-                              <div style={{fontWeight:700,fontSize:26,color:"#323338",marginTop:4,lineHeight:1}}>{pick}</div>
-                              {rc&&rc.note==="max" && <div style={{fontSize:9,color:"#BA4511",marginTop:2}}>largest size — may run small</div>}
-                              {rc&&rc.note==="min" && <div style={{fontSize:9,color:"#BA4511",marginTop:2}}>smallest size — may run big</div>}
-                              {wide ? <ModelRows models={models} showSrc={false}/> : <DimRows rows={drows} size={pick} showSrc={false}/>}
-                            </>)}
-                          </div>
-                        );})}
-                      </div>
-                    </>)}
-                    <p style={{fontSize:11,color:"#9699A6",marginTop:14,lineHeight:1.5}}>{fitView==="customer" ? <>Each product shows the <b>one size to order</b> for your dog, based on your answer — a <b>lean/active</b> dog gets the smaller size, a <b>chubby/less-active</b> dog the larger. Switch to <b>Internal</b> to see both sizes in the range and the sales behind them.</> : <>Each product shows the <b>two sequential sizes</b> this breed falls between, chosen as the best-selling adjacent pair — the <b style={{color:"#BA4511"}}>highlighted</b> one is the most-kept. % is each size's share of kept sales; "both confirmed" means real sales support both. Grey = estimated from body dimensions where sales are thin.</>}</p>
-                  </div>
-                );
-              })()}
-            </section>
-
-            {fitBreed && fitView==="internal" && (()=>{
-              const b=ALL.find(x=>x.name===fitBreed); if(!b) return null;
-              const DLBL={body:"back",neck:"neck",chest:"chest"};
-              const dogdim=dim=>dim==="body"?((b.care&&b.care.bodyLen)||b.height):dim==="neck"?b.neck:b.chest;
-              const nearest=(arr,t)=>{let best=null;(arr||[]).forEach(([s,cm])=>{const d=Math.abs(cm-t);if(best===null||d<best.d)best={s,cm,d};});return best;};
-              const th={textAlign:"left",padding:"7px 10px",fontSize:10.5,color:"#9699A6",textTransform:"uppercase",letterSpacing:"0.04em",borderBottom:"1.5px solid #E6E9EF",...MONO};
-              const td={padding:"6px 10px",fontSize:12.5,color:"#323338",borderBottom:"1px solid #F0F1F6",...MONO};
-              const anyAdj=Object.keys(easeAdj).length>0;
-              return (
-                <section style={card}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
-                    <h3 style={{margin:0,fontSize:14.5}}>Ease tuner — {fitBreed}</h3>
-                    {(anyAdj||Object.keys(ratioAdj).length>0) && <button onClick={()=>{setEaseAdj({});setRatioAdj({});}} style={{border:"1px solid #C3C6D4",background:"#fff",borderRadius:7,padding:"5px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:600,color:"#565A6E"}}>Reset to calibrated</button>}
-                  </div>
-                  <p style={{fontSize:12,color:"#676879",margin:"4px 0 10px"}}>Ease = how much bigger the garment runs than the dog. Change it to see the target product dimension (dog + ease) and the size it gives. Default is calibrated from real sales. <b>Girth ×</b> and <b>Neck ×</b> are the ratios used to estimate those dimensions where the catalog only publishes length — calibrated at {RATIO_DEFAULT.girth} and {RATIO_DEFAULT.neck} on the 13 sales-confirmed raincoat breeds.</p>
-                  <div style={{overflowX:"auto"}}>
-                    <table style={{borderCollapse:"collapse",width:"100%",minWidth:700}}><thead><tr><th style={th}>Product</th><th style={th}>Dog</th><th style={th}>Ease (cm)</th><th style={th}>Target garment</th><th style={th}>Size</th><th style={th}>Girth ×</th><th style={th}>Neck ×</th></tr></thead><tbody>
-                      {REC_PRODUCTS.map(p=>{const dim=EASE_DIM[p]; const dd=dogdim(dim); const mid=(dd[0]+dd[1])/2;
-                        const e=easeAdj[p]!=null?easeAdj[p]:EASE_DEFAULT[p]; const target=mid+(Number(e)||0); const nr=nearest(LADDER[p],target);
-                        const changed=easeAdj[p]!=null && Number(easeAdj[p])!==EASE_DEFAULT[p];
-                        const dimsOf=DIMS[p]||[]; const primary=DIM_OF_EASE[EASE_DIM[p]];
-                        const ratioCell=(d)=>{
-                          if(!dimsOf.includes(d) || d===primary) return <td style={{...td,color:"#C3C6D4"}}>—</td>;
-                          const cur=(ratioAdj[p]&&ratioAdj[p][d]!=null)?ratioAdj[p][d]:RATIO_DEFAULT[d];
-                          const dogR=d==="girth"?b.chest:b.neck; const out=((dogR[0]+dogR[1])/2)*(Number(cur)||1);
-                          return (<td style={td}>
-                            <input type="number" step="0.01" value={cur} onChange={ev=>setRatioAdj({...ratioAdj,[p]:{...(ratioAdj[p]||{}),[d]:ev.target.value}})} style={{width:56,padding:"4px 6px",borderRadius:6,border:"1.5px solid #C3C6D4",fontSize:12.5,fontFamily:"inherit"}}/>
-                            <span style={{color:"#9699A6",fontSize:10,marginLeft:5}}>{Math.round(out)} cm</span>
-                          </td>);
-                        };
-                        return (<tr key={p} style={{background:changed?"#FEF7ED":"transparent"}}>
-                          <td style={{...td,fontWeight:600}}>{p}</td>
-                          <td style={td}>{dd[0]}–{dd[1]} cm {DLBL[dim]}</td>
-                          <td style={td}><input type="number" step="0.5" value={e} onChange={ev=>setEaseAdj({...easeAdj,[p]:ev.target.value})} style={{width:58,padding:"4px 6px",borderRadius:6,border:"1.5px solid #C3C6D4",fontSize:12.5,fontFamily:"inherit"}}/> {changed && <span style={{fontSize:9,color:"#9699A6"}}>(def {EASE_DEFAULT[p]})</span>}</td>
-                          <td style={{...td,color:"#BA4511",fontWeight:600}}>{target.toFixed(1)} cm</td>
-                          <td style={td}>{nr?`${nr.s}`:"—"} {nr && <span style={{color:"#9699A6",fontSize:10}}>({nr.cm} cm)</span>}</td>
-                          {ratioCell("girth")}
-                          {ratioCell("neck")}
-                        </tr>);})}
-                    </tbody></table>
-                  </div>
-                  <p style={{fontSize:10.5,color:"#9699A6",marginTop:8,lineHeight:1.5}}>"Target garment" = the dog's own measurement (midpoint) + ease. "Size" is the closest product size to that target. Girth × and Neck × multiply the dog's chest and neck to estimate the dimensions the catalog doesn't publish — a dash means that dimension is the product's own published measurement and needs no estimate. This is a what-if preview — it doesn't overwrite the sales-based recommendation above.</p>
-                </section>
-              );
-            })()}
-
-            {fitBreed && (()=>{
-              const b=ALL.find(x=>x.name===fitBreed);
-              const subs=Array.from(new Set(fullCatalog.map(p=>p.subCategory).filter(Boolean))).sort();
-              const prods=fullCatalog.filter(p=>p.subCategory===drillSub);
-              const prod=fullCatalog.find(p=>p.name===drillProduct && p.subCategory===drillSub);
-              const model=(drillSub==="Raincoat" && prod) ? raincoatModelFor(prod.name) : null;
-              const th={textAlign:"left",padding:"7px 10px",fontSize:10.5,color:"#9699A6",textTransform:"uppercase",letterSpacing:"0.04em",borderBottom:"1.5px solid #E6E9EF",...MONO};
-              const td={padding:"7px 10px",fontSize:12.5,color:"#323338",borderBottom:"1px solid #F0F1F6",...MONO};
-              return (
-                <section style={card}>
-                  <h3 style={{margin:"0 0 4px",fontSize:14.5}}>Size to order for a specific product</h3>
-                  <p style={{fontSize:12,color:"#676879",margin:"0 0 10px"}}>Pick a category and a product to see the <b>recommended size(s) for {fitBreed}</b> with full dimensions. Raincoats show back length, chest girth &amp; neck from the product spec deck; other categories show the catalog dimensions.</p>
-                  <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
-                    <select value={drillSub} onChange={e=>{setDrillSub(e.target.value);setDrillProduct("");}} style={{padding:"9px 10px",borderRadius:8,border:"1.5px solid #C3C6D4",fontSize:13,fontFamily:"inherit",background:"#fff"}}>
-                      {subs.map(s=><option key={s} value={s}>{s}</option>)}
-                    </select>
-                    <select value={drillProduct} onChange={e=>setDrillProduct(e.target.value)} style={{flex:1,minWidth:220,padding:"9px 10px",borderRadius:8,border:"1.5px solid #C3C6D4",fontSize:13,fontFamily:"inherit",background:"#fff"}}>
-                      <option value="">— Select a product ({prods.length}) —</option>
-                      {prods.slice(0,400).map(p=><option key={p.name} value={p.name}>{p.name}</option>)}
-                    </select>
-                  </div>
-                  {!prod && <p style={{fontSize:12,color:"#9699A6",margin:0}}>Choose a product above to see its full size chart.</p>}
-                  {prod && model && (()=>{
-                    const recP=(typeof REC_PRODUCTS!=="undefined" && REC_PRODUCTS.includes(drillSub) && REC_MATRIX[fitBreed])?REC_MATRIX[fitBreed][drillSub]:null;
-                    const recSizes=recP?recP.pair:null; const recBase=recP?recP.base:null;
-                    const bl=(b.care&&b.care.bodyLen)||b.height; const dm=(bl[0]+bl[1])/2;
-                    const rows=model.sizes.map((s,i)=>({s,i})).filter(x=> recSizes? recSizes.includes(x.s) : true);
-                    return (
-                    <div style={{overflowX:"auto"}}>
-                      <div style={{fontSize:11,color:"#00854D",marginBottom:6}}>✓ Size to order for <b>{fitBreed}</b> — spec from the <b>{model.name}</b> deck (back, chest &amp; neck).</div>
-                      <table style={{borderCollapse:"collapse",width:"100%",minWidth:420}}><thead><tr><th style={th}>Size</th><th style={th}>Back length</th><th style={th}>Chest girth</th><th style={th}>Neck</th><th style={th}>Ease vs dog back</th></tr></thead><tbody>
-                        {rows.map(({s,i})=>{const on=s===recBase; const ea=Math.round(model.back[i]-dm); return (
-                          <tr key={s} style={{background:on?"#FEF1E5":"transparent"}}>
-                            <td style={{...td,fontWeight:on?700:600,color:on?"#BA4511":"#323338"}}>{s}{on?" ◄ best":""}</td>
-                            <td style={td}>{model.back[i]} cm</td><td style={td}>{model.girth[i]} cm</td><td style={td}>{model.neck[i]} cm</td>
-                            <td style={{...td,color:ea<0?"#E2445C":ea>15?"#B47500":"#00854D"}}>{ea>=0?"+":""}{ea} cm</td>
-                          </tr>);})}
-                      </tbody></table>
-                      <p style={{fontSize:11,color:"#9699A6",marginTop:8,lineHeight:1.5}}>{fitBreed} back is {bl[0]}–{bl[1]} cm, chest {b.chest[0]}–{b.chest[1]} cm. These are the sizes to order (same as the grid above); the <b style={{color:"#BA4511"}}>◄ best</b> one is the top pick, the other suits a lighter/heavier dog. "Ease vs dog back" is how much longer the coat runs than the dog.</p>
-                    </div>);})()}
-                  {prod && !model && (()=>{ const ch=productChart(prod);
-                    const recP=(typeof REC_PRODUCTS!=="undefined" && REC_PRODUCTS.includes(drillSub) && REC_MATRIX[fitBreed])?REC_MATRIX[fitBreed][drillSub]:null;
-                    const recSizes=recP?recP.pair:null; const recBase=recP?recP.base:null;
-                    const bv=!recSizes?bestSizeForBreed(prod,b,ptypeOfSub(drillSub)):null; const single=bv?bv.size:null;
-                    const rows=ch.sizes.filter(s=> recSizes? recSizes.includes(s) : (single? s===single : true));
-                    return (
-                    <div style={{overflowX:"auto"}}>
-                      <div style={{fontSize:11,color:"#676879",marginBottom:6}}>Size to order for <b>{fitBreed}</b> — dimensions from the HUFT catalog{ch.labels.length?"":" — this product has no structured per-size dimensions"}.</div>
-                      {ch.labels.length>0 && rows.length>0 && <table style={{borderCollapse:"collapse",width:"100%",minWidth:320}}><thead><tr><th style={th}>Size</th>{ch.labels.map(l=><th key={l} style={th}>{l}</th>)}</tr></thead><tbody>
-                        {rows.map(s=>{const on=s===(recBase||single); return (
-                          <tr key={s} style={{background:on?"#FEF1E5":"transparent"}}>
-                            <td style={{...td,fontWeight:on?700:600,color:on?"#BA4511":"#323338"}}>{s}{on?" ◄ best":""}</td>
-                            {ch.labels.map(l=><td key={l} style={td}>{ch.data[s]&&ch.data[s][l]?ch.data[s][l]:"—"}</td>)}
-                          </tr>);})}
-                      </tbody></table>}
-                      {rows.length===0 && <p style={{fontSize:12,color:"#9699A6"}}>No recommended size for this breed in this category.</p>}
-                    </div>);})()}
-                </section>
-              );
-            })()}
-          </>}
-
-          {fitMode==="product" && <>
-          <section style={card}>
-            <h3 style={{margin:"0 0 4px",fontSize:14.5}}>Pick a product from the catalog</h3>
-            <p style={{fontSize:12,color:"#676879",margin:"0 0 10px"}}>Choose a category and a product — dimensions load automatically from {fullCatalog.length.toLocaleString()} products in the HUFT Catalog. Or leave it on manual entry and type dimensions directly below.</p>
-            <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
-              <select value={fitCat} onChange={e=>{setFitCat(e.target.value);setFitSub("All");setFitProductName("");setFitNote("");}} style={{padding:"9px 10px",borderRadius:8,border:"1.5px solid #C3C6D4",fontSize:13,fontFamily:"inherit",background:"#fff"}}>
-                {fitCatOptions.map(c=><option key={c} value={c}>{c==="All"?"All categories":c}</option>)}
-              </select>
-              <select value={fitProductName} onChange={e=>applyProduct(e.target.value)} style={{flex:1,minWidth:200,padding:"9px 10px",borderRadius:8,border:"1.5px solid #C3C6D4",fontSize:13,fontFamily:"inherit",background:"#fff"}}>
-                <option value="">— Manual entry (no product selected) —</option>
-                {fitProductOptions.slice(0,500).map(p=><option key={p.name} value={p.name}>{p.name}</option>)}
-              </select>
-              {fitProductName && (()=>{
-                const p=fullCatalog.find(x=>x.name===fitProductName);
-                const sizes=p?p.variants.map(v=>v.size):[];
-                if(!p || sizes.length<2) return null;
-                return (
-                  <select value={fitVariantSize} onChange={e=>applySize(e.target.value)} style={{padding:"9px 10px",borderRadius:8,border:"1.5px solid #C3C6D4",fontSize:13,fontFamily:"inherit",background:"#fff"}}>
-                    {sizes.map(s=><option key={s} value={s}>{s}</option>)}
-                  </select>
-                );
-              })()}
-            </div>
-            {fitProductName && (()=>{
-              const p=fullCatalog.find(x=>x.name===fitProductName);
-              if(!p || p.variants.length<2) return null;
-              return (
-                <div style={{display:"flex",gap:6,flexWrap:"wrap",margin:"0 0 10px"}}>
-                  {p.variants.map(v=>(
-                    <button key={v.size} onClick={()=>applySize(v.size)}
-                      style={{padding:"4px 9px",borderRadius:999,fontSize:11.5,fontFamily:"inherit",cursor:"pointer",
-                        border:v.size===fitVariantSize?"1.5px solid #0073EA":"1.5px solid #DCDFEA",
-                        background:v.size===fitVariantSize?"#EAF1FF":"#fff",
-                        color:v.size===fitVariantSize?"#0073EA":"#565A6E"}}
-                      title={v.dimension||""}>
-                      {v.size}
-                    </button>
-                  ))}
-                </div>
-              );
-            })()}
-            {fitNote && <p style={{fontSize:12,color:"#565A6E",background:"#F0F1F6",borderRadius:7,padding:"7px 10px",margin:"0 0 14px"}}>{fitNote}</p>}
-            {fitExtra.length>0 && !noDims && (
-              <div style={{display:"flex",gap:6,flexWrap:"wrap",margin:"-8px 0 14px"}}>
-                {fitExtra.map(e=>(
-                  <span key={e.label} style={{fontSize:11,color:"#565A6E",background:"#fff",border:"1.5px solid #E6E9EF",borderRadius:999,padding:"3px 10px"}}>
-                    {e.label}: {fmtDim(e.range)}
-                  </span>
-                ))}
-              </div>
-            )}
-            <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-              {ptype==="apparel" ? (
-                (lengthMin!==""&&lengthMax!==""&&lengthMin===lengthMax) ? (
-                  <NumBox label="Product length (cm)" value={lengthMin} onChange={v=>{manualEdit(setLengthMin)(v);manualEdit(setLengthMax)(v);}}/>
-                ) : <>
-                  <NumBox label="Body length min (cm)" value={lengthMin} onChange={manualEdit(setLengthMin)}/>
-                  <NumBox label="Body length max (cm)" value={lengthMax} onChange={manualEdit(setLengthMax)}/>
-                </>
-              ) : <>
-                {(neckMin!==""&&neckMax!==""&&neckMin===neckMax) ? (
-                  <NumBox label="Neck size (cm)" value={neckMin} onChange={v=>{manualEdit(setNeckMin)(v);manualEdit(setNeckMax)(v);}}/>
-                ) : <>
-                  <NumBox label="Neck min (cm)" value={neckMin} onChange={manualEdit(setNeckMin)}/>
-                  <NumBox label="Neck max (cm)" value={neckMax} onChange={manualEdit(setNeckMax)}/>
-                </>}
-                {ptype==="harness" && (
-                  (chestMin!==""&&chestMax!==""&&chestMin===chestMax) ? (
-                    <NumBox label="Chest size (cm)" value={chestMin} onChange={v=>{manualEdit(setChestMin)(v);manualEdit(setChestMax)(v);}}/>
-                  ) : <>
-                    <NumBox label="Chest min (cm)" value={chestMin} onChange={manualEdit(setChestMin)}/>
-                    <NumBox label="Chest max (cm)" value={chestMax} onChange={manualEdit(setChestMax)}/>
-                  </>
-                )}
-                <NumBox label="Webbing width (cm)" value={width} onChange={setWidth} min={0.5} max={8}/>
-              </>}
-            </div>
-            {!validDims && <p style={{color:"#E2445C",fontSize:13,margin:"10px 0 0"}}>Max must be greater than or equal to min for each dimension.</p>}
-          </section>
-
-          {validDims && <>
-            <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap"}}>
-              {Object.entries(counts).map(([g,n])=>{
-                const active=gradeFilter===g;
-                return (
-                <button key={g} onClick={()=>setGradeFilter(active?null:g)} style={{...MONO,flex:1,minWidth:70,textAlign:"center",background:GRADE[g].bg,color:GRADE[g].color,borderRadius:10,padding:"10px 6px",border:active?`2px solid ${GRADE[g].color}`:`1px solid ${GRADE[g].color}33`,cursor:"pointer",fontFamily:"'IBM Plex Mono', ui-monospace, monospace",opacity:gradeFilter&&!active?0.55:1,transition:"opacity 0.15s"}}>
-                  <div style={{fontSize:22,fontWeight:600}}>{n}</div><div style={{fontSize:11}}>{GRADE[g].label}</div>
-                </button>);
-              })}
-            </div>
-            {gradeFilter && <p style={{fontSize:12,color:"#676879",margin:"0 0 10px"}}>Showing <b style={{color:GRADE[gradeFilter].color}}>{GRADE[gradeFilter].label}</b> breeds only ({counts[gradeFilter]}) — <span style={{textDecoration:"underline",cursor:"pointer"}} onClick={()=>setGradeFilter(null)}>clear filter</span>.</p>}
-            <div style={{display:"flex",gap:14,alignItems:"center",flexWrap:"wrap",fontSize:11,color:"#676879",marginBottom:12}}>
-              <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:14,height:10,borderRadius:3,background:"#E6E9F5",border:"1.5px dashed #9699A6",display:"inline-block"}}/>Breed range</span>
-              <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:14,height:10,borderRadius:3,background:"#FFC299",display:"inline-block"}}/>Your product</span>
-              <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:14,height:10,borderRadius:3,background:"#00A25B",display:"inline-block"}}/>Overlap</span>
-            </div>
-            {(()=>{const selProd=fullCatalog.find(x=>x.name===fitProductName);return results.filter(r=>(gradeFilter?r.grade===gradeFilter:r.grade!=="none")).map(({breed:b,nPct,cPct,grade,demand})=>{
-              const worstConf = ptype==="apparel" ? "B" : ptype==="harness" ? ([b.conf.neck,b.conf.chest].includes("C")?"C":[b.conf.neck,b.conf.chest].includes("B")?"B":"A") : b.conf.neck;
-              const bodyLen=(b.care&&b.care.bodyLen)||b.height;
-              const recSize = (selProd && grade!=="none") ? bestSizeForBreed(selProd,b,ptype) : null;
-              return (
-              <div key={b.name} style={{...card,padding:"13px 14px",opacity:grade==="none"?0.62:1}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                  <div style={{fontWeight:700,fontSize:15}}>{b.name} <span style={{fontWeight:400,fontSize:12,color:"#9699A6"}}>· {b.group} · {"★".repeat(b.pop)}</span> <ConfBadge tier={worstConf}/></div>
-                  <span style={{display:"flex",alignItems:"center",gap:8}}>{recSize && <span style={{fontSize:12,fontWeight:700,padding:"3px 11px",borderRadius:999,background:"#FEF1E5",color:"#BA4511",border:"1px solid #FFBE92"}}>Order size {recSize.size}{recSize.cm?` · ${recSize.cm}`:""}</span>}<span style={{fontSize:12,fontWeight:700,padding:"3px 10px",borderRadius:999,background:GRADE[grade].bg,color:GRADE[grade].color}}>{GRADE[grade].label}</span></span>
-                </div>
-                <div style={{marginTop:10,display:"grid",gap:8}}>
-                  {ptype==="apparel" ? (
-                    <div>
-                      <div style={{...MONO,fontSize:11,color:"#676879",marginBottom:3,display:"flex",justifyContent:"space-between"}}><span>BODY LENGTH · breed {bodyLen[0]}–{bodyLen[1]} cm <span title="Estimated from height/build" style={{cursor:"help"}}>est.</span></span><span>{Math.round(nPct*100)}% covered</span></div>
-                      <TapeBar breedRange={bodyLen} prodRange={[lengthMin,lengthMax]} domain={[15,100]}/>
-                    </div>
-                  ) : <>
-                  <div>
-                    <div style={{...MONO,fontSize:11,color:"#676879",marginBottom:3,display:"flex",justifyContent:"space-between"}}><span>NECK · breed {b.neck[0]}–{b.neck[1]} cm <ConfBadge tier={b.conf.neck}/></span><span>{Math.round(nPct*100)}% covered</span></div>
-                    <TapeBar breedRange={b.neck} prodRange={[neckMin,neckMax]} domain={[15,90]}/>
-                  </div>
-                  {ptype==="harness" && (
-                    <div>
-                      <div style={{...MONO,fontSize:11,color:"#676879",marginBottom:3,display:"flex",justifyContent:"space-between"}}><span>CHEST · breed {b.chest[0]}–{b.chest[1]} cm <ConfBadge tier={b.conf.chest}/></span><span>{Math.round(cPct*100)}% covered</span></div>
-                      <TapeBar breedRange={b.chest} prodRange={[chestMin,chestMax]} domain={[25,115]}/>
-                    </div>
-                  )}
-                  </>}
-                </div>
-                {grade!=="none" && (
-                  <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:9,alignItems:"center"}}>
-                    <Chip text={`Pull ${b.beh.pull}/5`} tip={pullHardware(b.beh.pull)} tone={b.beh.pull>=4?"warn":"info"}/>
-                    <Chip text={`Escape ${b.beh.escape}/5`} tip={b.beh.clip} tone={b.beh.escape>=4?"warn":"info"}/>
-                    {b.flags.map(f=><Chip key={f} text={FLAG_LABELS[f].label} tip={FLAG_LABELS[f].tip} tone="warn"/>)}
-                    {ptype!=="apparel" && <Chip text={widthAdvice(b.neck[1])} tone="info"/>}
-                    {ptype==="collar" && b.flags.includes("brachy") && <Chip text="⚠ Recommend harness for walking" tone="warn"/>}
-                    {ptype==="collar" && b.flags.includes("slipRisk") && <Chip text="⚠ Martingale advised" tone="warn"/>}
-                  </div>
-                )}
-              </div>);
-            })})()}
-            {counts.none>0 && <p style={{fontSize:12,color:"#9699A6",margin:"4px 0 0",textAlign:"center"}}>{counts.none} breed{counts.none>1?"s":""} not shown — no usable fit for this product.</p>}
-          </>}
-          </>}
-        </>}
-
-        {/* ===== BREED LIBRARY ===== */}
+        {/* ===== CHECK A FIT — customer flow ===== */}
+        {tab==="fit" && <CheckFitTab/>}
         {tab==="library" && <>
           <section style={card}>
             <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:2,alignItems:"center"}}>
@@ -1957,9 +1756,8 @@ function App({onLogout}){
         </>}
 
         {/* ===== HUFT CATALOG (Odoo export + curated fit-matched SKUs + team additions) ===== */}
-        {tab==="catalog" && <CatalogTab catalog={fullCatalog} odooCount={odooProducts.length} curatedCount={curatedProducts.length} customCount={customProducts.length}
-          onAddProduct={addCustomProduct} onRemoveProduct={removeCustomProduct}
-          onAsk={(name)=>{setAskOpen(true);setTimeout(()=>{window.__ASK_PREFILL__&&window.__ASK_PREFILL__(`Which breeds and sizes will the ${name} fit?`);},60);}}/>}
+        {tab==="catalog" && <FitCatalogTab
+          onAsk={(b)=>{setAskOpen(true);setTimeout(()=>{window.__ASK_PREFILL__&&window.__ASK_PREFILL__(`Which products and sizes fit a ${b}?`);},60);}}/>}
 
         {/* ===== FEEDBACK LOG ===== */}
         {tab==="feedback" && <>
@@ -1988,7 +1786,9 @@ function App({onLogout}){
         </>}
 
         <footer style={{marginTop:20,fontSize:11.5,color:"#9699A6",lineHeight:1.6}}>
-          Confidence tiers — <b>A</b>: published standard or measured study (±2–3 cm) · <b>B</b>: aggregated manufacturer sizing charts (±4–6 cm) · <b>C</b>: estimated from build, pending HUFT fit-lab measurement (±8 cm+). Chest girths for 41 of 50 breeds are now B/A, cross-checked against AKC-standard girth bands (The Artful Canine); the remaining C-tier are mostly native breeds with no published girth data — only HUFT fit-lab measurement can raise these to A. Indian lines often run heavier than international standards. Hover any A/B/C badge for what it means. Data is stored in this browser (localStorage); export JSON to consolidate. â = demand rank from HUFT’s actual 2-year retail sales (393k+ units). Product sizes come from your catalog; ask the engine which breeds each SKU fits.
+          <b>Sizes</b> come from what customers actually kept — {FIT_META.orders.toLocaleString()} orders and {FIT_META.returns.toLocaleString()} returns over {FIT_META.window}, store and online. They are not calculated from body measurements.
+          <b> Measurements</b> come from two places: the size charts in the product decks (apparel), and the product dimensions held in Odoo (collars, leashes, harnesses, jackets, dresses, bandanas). Every size chart says which. The Odoo ones have not been checked against a physical product yet.
+          <b> Confidence tiers</b> in the Knowledge base — <b>A</b>: published standard or measured study (±2–3 cm) · <b>B</b>: aggregated manufacturer sizing charts (±4–6 cm) · <b>C</b>: estimated from build, pending HUFT fit-lab measurement (±8 cm+). Team-added breeds and feedback are stored in this browser only; export JSON to consolidate.
         </footer>
       </div>
       </div>
