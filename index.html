@@ -1695,7 +1695,9 @@ function App({onLogout}){
   }).sort((a,z)=>a.pct-z.pct),[saved,ALL]);
   const gaps=coverage.filter(c=>c.grade==="none"||c.grade==="partial");
 
-  const NAVITEMS=[["home","⌂","Home"],["fit","📏","Check a fit"],["catalog","📚","HUFT Catalog"],["library","📖","Knowledge base"],["feedback","📝","Feedback"]];
+  // Knowledge base is deliberately not in the nav — it is still reachable by
+  // typing a breed into the search bar, which is how anyone who needs it gets there.
+  const NAVITEMS=[["home","⌂","Home"],["fit","📏","Check a fit"],["catalog","📚","HUFT Catalog"],["feedback","📝","Feedback"]];
   const card={background:"#fff",borderRadius:8,border:"1px solid #E6E9EF",padding:16,marginBottom:12};
 
   return (
