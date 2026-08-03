@@ -83,7 +83,8 @@ Two earlier tabs were removed, both deliberately: the old **Fit checker** (enter
 ### Analysis outputs
 | File | What it is |
 |---|---|
-| `HUFT_Fit_Matrix_by_SKU.xlsx` | **The main deliverable.** 11,280 breed × product recommendations across **313 products / 15 categories**, all measurements, keep rates, fit quality, and the "do we need a new size" analysis. Rebuilt 3 Aug 2026 to add collars, leashes, harnesses, jackets, dresses and bandanas |
+| `HUFT_Fit_Matrix_by_SKU.xlsx` | **The main deliverable.** 7,815 breed × product recommendations across **217 products / 15 categories**, all measurements, keep rates, fit quality, and the "do we need a new size" analysis |
+| `HUFT_Old_Chart_vs_Sales_Data.xlsx` | The old "Size chart Gallery for all breeds" checked cell by cell against 12 months of sales. 64% agree; where they differ the old chart is usually one size too big, concentrated in accessories and small/toy breeds |
 | `HUFT_Raincoat_Size_by_Breed.xlsx` | One sheet per raincoat model |
 | `HUFT_Fit_Matrix.xlsx` | Category-level version. Superseded by the SKU file — keep only for the category summary |
 | `HUFT_Breed_KB.xlsx` | Breed body dimensions, confidence, sources |
@@ -102,6 +103,29 @@ Two earlier tabs were removed, both deliberately: the old **Fit checker** (enter
 ---
 
 ## 4. How a recommendation is actually made
+
+### Colour variants are merged (added 3 Aug 2026)
+
+Most gear SKUs are the same product in another colour and carry the same size chart, so they were collapsing the same row five times over. Products now merge on **base name + an identical size chart**: 305 → 220. The merged entry keeps every SKU code and lists the colours.
+
+Five products deliberately did NOT merge, because two colours of the same product hold **different measurements in Odoo**. Someone should check whether that is real or a typo:
+
+- HUFT Walkmate Pet Harness — 3 different charts
+- HUFT Active Pet Dog Harness, HUFT Xplorers Dog Collar, Dash Dog Flow Padded Dog Collar, HUFT Desi Regal Bandana — 2 each
+
+### Keep rate is a CATEGORY number, not a per-SKU one
+
+`huft_fit_pull_v2.sql` groups by breed, channel, category and size — **not by product code**. So "1,921 kept, 93.6%" against a specific harness is every harness that breed bought, and the same figure repeats down the whole category. The columns are labelled "— whole category" in the tool and the workbook for this reason.
+
+Getting real per-SKU rates means re-running the pull with `base_sku` in the GROUP BY. Be aware that split 220 ways most cells will fall below a usable sample, which is why it was not done this way to begin with.
+
+### Photo-based build detection — built, NOT connected
+
+Step 3 of Check a fit offers a photo upload before falling back to the three build buttons. **Nothing reads the photo yet.** `const BUILD_API = ""` at the top of `index.html` is where a serverless endpoint goes; it should take an image and return `{build, confidence, note}` with build in lean/average/broad. With BUILD_API empty the step says "Photo reading isn't switched on yet" and asks the question instead.
+
+It fails loudly on purpose. Do not make it fall back to a guessed build — a guessed build ships a wrong size, which is the exact failure this whole project exists to reduce.
+
+Two things to settle before building the endpoint: single-photo body condition scoring is genuinely unreliable (coat length reads as bulk, angle changes the answer, vets use two views), and every size check becomes a paid API call. Keep the manual override either way.
 
 ### Which measurement picks the size (added 3 Aug 2026)
 

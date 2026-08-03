@@ -1170,6 +1170,28 @@ function downloadCSV(rows,fname){
   a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8;"}));
   a.download=fname; a.click(); URL.revokeObjectURL(a.href);
 }
+/* ---- build from a photo ----------------------------------------------------
+   Nothing in this file can look at a photo. The browser can hold the image and
+   show it back, but judging lean vs broad needs a vision model, and a model needs
+   a key, and a key cannot sit in a static page every customer downloads.
+   So: point BUILD_API at a small serverless endpoint that takes the image and
+   returns {build, confidence, note}. Until that exists, the photo step tells the
+   customer plainly that we could not read it and falls back to the question.
+   Never guess a build from an unanswered photo — a wrong size ships a return. */
+const BUILD_API = "";   // e.g. "https://huft-fit.vercel.app/api/build-from-photo"
+async function analyseBuild(file){
+  if(!BUILD_API) return {ok:false,reason:"not-connected"};
+  try{
+    const fd=new FormData(); fd.append("photo",file);
+    const r=await fetch(BUILD_API,{method:"POST",body:fd});
+    if(!r.ok) return {ok:false,reason:"error"};
+    const j=await r.json();
+    if(!["lean","average","broad"].includes(j.build)) return {ok:false,reason:"unclear"};
+    return {ok:true,build:j.build,confidence:j.confidence,note:j.note||""};
+  }catch(e){ return {ok:false,reason:"error"}; }
+}
+const BUILD_LABEL={lean:"Lean",average:"Average",broad:"Broad & sturdy"};
+
 /* ============ CHECK A FIT — the customer-facing flow ============
    breed → product → build → size, then straight back to product for the next one. */
 function CheckFitTab({onSwitchToCatalog}){
@@ -1180,6 +1202,9 @@ function CheckFitTab({onSwitchToCatalog}){
   const [prod,setProd]   = React.useState("");
   const [pq,setPq]       = React.useState("");
   const [build,setBuild] = React.useState("");
+  const [photo,setPhoto] = React.useState(null);   // {url,name}
+  const [busy,setBusy]   = React.useState(false);
+  const [guess,setGuess] = React.useState(null);   // {build,confidence,note} or {failed,reason}
 
   const breeds = Object.keys(BREED_FIT||{}).sort();
   const cats   = Object.keys(PRODUCT_CHARTS||{}).sort();
@@ -1203,8 +1228,15 @@ function CheckFitTab({onSwitchToCatalog}){
     background:active?"#FF6D1F":"#fff",color:active?"#fff":"#40434E",fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"inherit"});
 
   const STEPS=[[1,"Breed"],[2,"Product"],[3,"Build"],[4,"Size"]];
-  const reset=()=>{setStep(1);setBreed("");setCat("");setProd("");setBuild("");setBq("");setPq("");};
+  const clearPhoto=()=>{ if(photo&&photo.url) URL.revokeObjectURL(photo.url); setPhoto(null); setGuess(null); setBusy(false); };
+  const reset=()=>{setStep(1);setBreed("");setCat("");setProd("");setBuild("");setBq("");setPq("");clearPhoto();};
   const anotherProduct=()=>{setStep(2);setCat("");setProd("");setBuild("");setPq("");};
+  const onPhoto=async(e)=>{
+    const f=e.target.files&&e.target.files[0]; if(!f) return;
+    clearPhoto(); setPhoto({url:URL.createObjectURL(f),name:f.name}); setBusy(true);
+    const r=await analyseBuild(f); setBusy(false);
+    if(r.ok){ setGuess(r); setBuild(r.build); } else { setGuess({failed:true,reason:r.reason}); }
+  };
 
   return (<>
     <section style={{...card,paddingBottom:14}}>
@@ -1271,20 +1303,70 @@ function CheckFitTab({onSwitchToCatalog}){
 
     {/* ---- 3. build ---- */}
     {step===3 && <section style={card}>
-      <div style={{fontWeight:700,fontSize:16,marginBottom:3}}>How would you describe your {breed}’s build? 🐾</div>
-      <div style={{fontSize:12.5,color:"#676879",marginBottom:14}}>Same breed, different dogs — this is the one thing we can’t know.</div>
+      <div style={{fontWeight:700,fontSize:16,marginBottom:3}}>One last thing about your {breed} 🐾</div>
+      <div style={{fontSize:12.5,color:"#676879",marginBottom:14}}>
+        Same breed, different dogs. Send us a photo and we'll read their build — or just tell us.
+      </div>
+
+      {/* ---- photo ---- */}
+      <div style={{border:"1.5px dashed #FFBE92",background:"#FEF7ED",borderRadius:10,padding:16,marginBottom:14}}>
+        {!photo ? (
+          <label style={{display:"block",textAlign:"center",cursor:"pointer"}}>
+            <div style={{fontSize:30}}>📷</div>
+            <div style={{fontWeight:700,fontSize:14.5,margin:"6px 0 3px"}}>Upload a photo of your dog</div>
+            <div style={{fontSize:12,color:"#676879",marginBottom:10}}>
+              A side-on photo, standing, whole body in frame works best.
+            </div>
+            <span style={{display:"inline-block",padding:"10px 20px",borderRadius:999,background:"#FF6D1F",
+                          color:"#fff",fontWeight:700,fontSize:13.5}}>Choose a photo</span>
+            <input type="file" accept="image/*" onChange={onPhoto} style={{display:"none"}}/>
+          </label>
+        ) : (
+          <div style={{display:"flex",gap:14,alignItems:"center",flexWrap:"wrap"}}>
+            <img src={photo.url} alt="your dog" style={{width:96,height:96,objectFit:"cover",borderRadius:10,border:"1.5px solid #FFBE92"}}/>
+            <div style={{flex:1,minWidth:200}}>
+              {busy && <div style={{fontSize:13.5,color:"#676879"}}>Reading the photo…</div>}
+              {!busy && guess && guess.build && <>
+                <div style={{fontSize:12,color:"#676879"}}>From the photo, your dog looks</div>
+                <div style={{fontSize:20,fontWeight:700,color:"#BA4511"}}>{BUILD_LABEL[guess.build]}</div>
+                {guess.note && <div style={{fontSize:12,color:"#676879",marginTop:3}}>{guess.note}</div>}
+                <div style={{fontSize:11.5,color:"#9699A6",marginTop:4}}>Not right? Pick the correct one below.</div>
+              </>}
+              {!busy && guess && guess.failed && <>
+                <div style={{fontSize:13.5,fontWeight:600,color:"#C58A16"}}>
+                  {guess.reason==="not-connected"
+                    ? "Photo reading isn't switched on yet."
+                    : guess.reason==="unclear"
+                      ? "We couldn't tell from that photo."
+                      : "Something went wrong reading that photo."}
+                </div>
+                <div style={{fontSize:12,color:"#676879",marginTop:3}}>Tell us below instead — it takes one tap.</div>
+              </>}
+              <button onClick={clearPhoto} style={{marginTop:8,background:"none",border:"none",color:"#0073EA",
+                cursor:"pointer",fontFamily:"inherit",fontSize:12.5,padding:0}}>remove photo</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ---- or just ask ---- */}
+      <div style={{fontSize:12.5,color:"#676879",marginBottom:8}}>
+        {guess&&guess.build ? "Or choose it yourself:" : "How would you describe their build?"}
+      </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10}}>
         {[["lean","🏃","Lean","Ribs easy to feel, tucked waist"],
           ["average","⚖️","Average","Typical for the breed"],
-          ["broad","🍖","Broad & sturdy","Deep chest, heavy set, or a thick winter coat"]].map(([v,ic,l,d])=>(
+          ["broad","🍖","Broad & sturdy","Deep chest, heavy set, or a thick winter coat"]].map(([v,ic,l,d])=>{
+          const picked = guess&&guess.build===v;
+          return (
           <button key={v} onClick={()=>{setBuild(v);setStep(4);}}
-            style={{padding:"16px 14px",borderRadius:10,border:"1.5px solid #E6E9EF",background:"#fff",
-                    cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
+            style={{padding:"16px 14px",borderRadius:10,border:picked?"1.5px solid #FF6D1F":"1.5px solid #E6E9EF",
+                    background:picked?"#FEF1E5":"#fff",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
             <div style={{fontSize:24}}>{ic}</div>
-            <div style={{fontWeight:700,fontSize:14.5,margin:"5px 0 2px"}}>{l}</div>
+            <div style={{fontWeight:700,fontSize:14.5,margin:"5px 0 2px"}}>{l}{picked?" ✓":""}</div>
             <div style={{fontSize:11.5,color:"#676879",lineHeight:1.45}}>{d}</div>
-          </button>
-        ))}
+          </button>);
+        })}
       </div>
       <button onClick={()=>setStep(2)} style={{marginTop:12,background:"none",border:"none",color:"#0073EA",cursor:"pointer",fontFamily:"inherit",fontSize:12.5,padding:0}}>← pick a different product</button>
     </section>}
@@ -1442,15 +1524,21 @@ function FitCatalogTab({onAsk}){
             <span>
               <span style={{fontWeight:700,fontSize:14,color:"#323338"}}>{p}</span>
               <span style={{display:"block",fontSize:11.5,color:"#9699A6",marginTop:2}}>
-                {chart.sizes.length} sizes: {chart.sizes.join(" · ")} — from {chart.src}
+                {chart.sizes.length} sizes: {chart.sizes.join(" · ")}
+                {chart.variants>1 && <> · {chart.variants} colours</>} — from {chart.src}
               </span>
             </span>
             <span style={{fontSize:12,color:"#676879",whiteSpace:"nowrap"}}>{rows.length} breeds {open?"▾":"▸"}</span>
           </button>
           {open && <div style={{padding:"0 16px 16px"}}>
-            {(chart.skuNames||[]).length>0 && <div style={{fontSize:11.5,color:"#9699A6",padding:"8px 0"}}>Applies to: {chart.skuNames.join(", ")}</div>}
+            {(chart.colours||[]).length>0
+              ? <div style={{fontSize:11.5,color:"#9699A6",padding:"8px 0"}}>
+                  Same size chart across {chart.variants} colours: {chart.colours.join(", ")}
+                  {chart.baseSku && <> · SKUs {chart.baseSku}</>}
+                </div>
+              : (chart.skuNames||[]).length>0 && <div style={{fontSize:11.5,color:"#9699A6",padding:"8px 0"}}>Applies to: {chart.skuNames.join(", ")}</div>}
             <div style={{overflowX:"auto"}}><table style={{borderCollapse:"collapse",fontSize:12.5,width:"100%"}}>
-              <thead><tr>{["Breed","RECOMMENDED size","Measurements","Size up (broad & sturdy)","Kept 12m","Keep rate","New size needed?"].map(h=>
+              <thead><tr>{["Breed","RECOMMENDED size","Measurements","Size up (broad & sturdy)","Kept 12m — whole category","Keep rate — whole category","New size needed?"].map(h=>
                 <th key={h} style={{textAlign:"left",padding:"7px 9px",borderBottom:"1.5px solid #E6E9EF",color:"#676879",fontWeight:600,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
               <tbody>{rows.map(r=>(
                 <tr key={r.breed} style={{borderBottom:"1px solid #F2F3F7"}}>
@@ -1465,6 +1553,9 @@ function FitCatalogTab({onAsk}){
                 </tr>))}</tbody>
             </table></div>
             {rows.length===0 && <p style={{fontSize:13,color:"#9699A6"}}>No breed has enough sales evidence for this product yet.</p>}
+            <div style={{fontSize:11,color:"#9699A6",marginTop:8,lineHeight:1.6}}>
+              The last two columns are for <b>{activeSub}</b> as a whole, not this SKU — the sales pull groups by category and size, not by product code, so the same figure repeats down a category. Re-pull grouped by base SKU if you need per-product keep rates.
+            </div>
           </div>}
         </section>);
       })}
