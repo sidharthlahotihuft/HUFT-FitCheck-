@@ -1207,11 +1207,75 @@ async function readDogPhoto(file,breeds){
     if(r.status===404 || r.status===405) return {ok:false,reason:"not-connected"};
     if(!r.ok) return {ok:false,reason:"error"};
     const j=await r.json();
-    if(!j.breed && !j.build) return {ok:false,reason:"unclear"};
-    return {ok:true,breed:j.breed||null,build:j.build||null,note:j.note||""};
+    if(!j.breed && !j.build) return {ok:false,reason:"unclear",issue:j.photoIssue||null,hint:j.retryHint||""};
+    return {ok:true,breed:j.breed||null,build:j.build||null,note:j.note||"",
+            issue:j.photoIssue||null,hint:j.retryHint||""};
   }catch(e){ return {ok:false,reason:"error"}; }
 }
 const BUILD_LABEL={lean:"Lean",average:"Average",broad:"Broad & sturdy"};
+/* ---- what a usable photo looks like ---------------------------------------
+   Schematic, not photographic — a line drawing reads instantly and never looks
+   like someone else's dog. Side-on and standing is the only pose that shows
+   girth and body length at the same time, which is the whole point. */
+function DogIcon({pose,ok}){
+  const c = ok ? "#00A25B" : "#D83A52";
+  const S = {width:"100%",height:56,display:"block"};
+  const body = {fill:"none",stroke:c,strokeWidth:2.4,strokeLinecap:"round",strokeLinejoin:"round"};
+  return (
+    <svg viewBox="0 0 72 46" style={S} aria-hidden="true">
+      {pose==="side" && <g style={body}>
+        <path d="M14 20 q0-7 8-7 h20 q6 0 8 3"/>
+        <path d="M14 20 v8 q0 3 4 3 h24 q6 0 6-4 v-7"/>
+        <circle cx="54" cy="15" r="6"/><path d="M60 15 h7"/><path d="M52 9 l-2-5"/>
+        <path d="M19 31 v9 M25 31 v9 M39 31 v9 M45 31 v9"/>
+        <path d="M14 21 l-7-6"/>
+      </g>}
+      {pose==="sit" && <g style={body}>
+        <path d="M20 34 q2-16 10-19 h12 q6 0 8 3"/>
+        <path d="M20 34 h26 q6 0 6-4 v-6"/>
+        <circle cx="54" cy="15" r="6"/><path d="M60 15 h7"/><path d="M52 9 l-2-5"/>
+        <path d="M44 27 v7 M50 27 v7"/>
+        <path d="M20 34 q-6 2-8 0"/>
+      </g>}
+      {pose==="front" && <g style={body}>
+        <circle cx="36" cy="16" r="9"/><path d="M30 9 l-3-6 M42 9 l3-6"/>
+        <path d="M28 25 q8 4 16 0 v13 q0 3-4 3 h-8 q-4 0-4-3 z"/>
+        <path d="M31 41 v3 M41 41 v3"/>
+      </g>}
+      {pose==="close" && <g style={body}>
+        <circle cx="36" cy="24" r="17"/><path d="M24 11 l-4-8 M48 11 l4-8"/>
+        <circle cx="30" cy="21" r="1.6" fill={c}/><circle cx="42" cy="21" r="1.6" fill={c}/>
+        <path d="M33 30 h6"/>
+      </g>}
+    </svg>);
+}
+function PhotoGuide(){
+  const items=[["side",true,"Side on, standing"],["sit",false,"Not sitting"],
+               ["front",false,"Not front on"],["close",false,"Not close-up"]];
+  return (
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:12}}>
+      {items.map(([pose,ok,label])=>(
+        <div key={pose} style={{background:ok?"#E9F6EF":"#FFF5F5",borderRadius:9,padding:"9px 6px 7px",
+                                border:ok?"1.5px solid #9FDCBD":"1px solid #F3C9CE",textAlign:"center"}}>
+          <DogIcon pose={pose} ok={ok}/>
+          <div style={{fontSize:10.5,fontWeight:700,color:ok?"#00753F":"#B32E42",marginTop:3,lineHeight:1.25}}>
+            {ok?"✓ ":"✗ "}{label}
+          </div>
+        </div>))}
+    </div>);
+}
+const ISSUE_TEXT={
+  "not-side-on":"That photo isn't taken from the side.",
+  "sitting-or-lying":"Your dog is sitting or lying down.",
+  "cropped":"Part of your dog is out of the frame.",
+  "too-far":"Your dog is a bit small in that photo.",
+  "too-close":"That's too close in.",
+  "dark-or-blurry":"That photo is too dark or blurry to read.",
+  "obscured":"Your dog's coat or harness is hiding their shape.",
+  "multiple-dogs":"There's more than one dog in that photo.",
+  "no-dog":"We couldn't find a dog in that photo."
+};
+
 
 /* ============ CHECK A FIT — the customer-facing flow ============
    breed → product → build → size, then straight back to product for the next one. */
@@ -1252,7 +1316,7 @@ function CheckFitTab(){
     clearPhoto(); setPhoto({url:URL.createObjectURL(f)}); setBusy(true);
     const r=await readDogPhoto(f,breeds); setBusy(false);
     if(r.ok){ setRead(r); if(r.breed) setBreed(r.breed); if(r.build) setBuild(r.build); }
-    else setRead({failed:true,reason:r.reason});
+    else setRead({failed:true,reason:r.reason,issue:r.issue,hint:r.hint});
   };
   const BUILDS=[["lean","🏃","Lean","Ribs easy to feel, tucked waist"],
                 ["average","⚖️","Average","Typical for the breed"],
@@ -1290,16 +1354,27 @@ function CheckFitTab(){
 
       <div style={{border:"1.5px dashed #FFBE92",background:"#FEF7ED",borderRadius:10,padding:16,marginBottom:18}}>
         {!photo ? (
-          <label style={{display:"block",textAlign:"center",cursor:"pointer"}}>
-            <div style={{fontSize:32}}>📷</div>
-            <div style={{fontWeight:700,fontSize:15,margin:"6px 0 3px"}}>Upload a photo of your dog</div>
-            <div style={{fontSize:12,color:"#676879",marginBottom:11}}>
-              Side-on, standing, whole body in frame works best.
+          <div>
+            <div style={{textAlign:"center",marginBottom:11}}>
+              <div style={{fontSize:32}}>📷</div>
+              <div style={{fontWeight:700,fontSize:15,margin:"6px 0 3px"}}>Upload a photo of your dog</div>
+              <div style={{fontSize:12,color:"#676879"}}>
+                We need to see their shape from the side — that's what tells us the size.
+              </div>
             </div>
-            <span style={{display:"inline-block",padding:"11px 22px",borderRadius:999,background:"#FF6D1F",
-                          color:"#fff",fontWeight:700,fontSize:14}}>Choose a photo</span>
-            <input type="file" accept="image/*" onChange={onPhoto} style={{display:"none"}}/>
-          </label>
+            <PhotoGuide/>
+            <div style={{fontSize:11.5,color:"#676879",lineHeight:1.75,marginBottom:12}}>
+              <b>For the best read:</b> your dog <b>standing on all four legs</b>, photographed
+              <b> from the side</b>, whole body from nose to tail in the frame, in good light against
+              a plain background. Take the coat and harness off if they're wearing one.
+              A phone photo from a couple of metres away is perfect.
+            </div>
+            <label style={{display:"block",textAlign:"center",cursor:"pointer"}}>
+              <span style={{display:"inline-block",padding:"11px 22px",borderRadius:999,background:"#FF6D1F",
+                            color:"#fff",fontWeight:700,fontSize:14}}>Choose a photo</span>
+              <input type="file" accept="image/*" onChange={onPhoto} style={{display:"none"}}/>
+            </label>
+          </div>
         ) : (
           <div style={{display:"flex",gap:14,alignItems:"center",flexWrap:"wrap"}}>
             <img src={photo.url} alt="your dog" style={{width:104,height:104,objectFit:"cover",borderRadius:10,border:"1.5px solid #FFBE92"}}/>
@@ -1311,22 +1386,33 @@ function CheckFitTab(){
                 {read.note && <div style={{fontSize:12,color:"#676879",marginTop:4}}>{read.note}</div>}
                 {!read.breed && <div style={{fontSize:13,color:"#C58A16",fontWeight:600}}>We couldn't place the breed — pick it below.</div>}
                 {!read.build && <div style={{fontSize:13,color:"#C58A16",fontWeight:600,marginTop:3}}>We couldn't judge the build — pick it below.</div>}
+                {read.issue && <div style={{fontSize:12,color:"#C58A16",marginTop:5}}>
+                  {ISSUE_TEXT[read.issue]||""} {read.hint} A better photo would give us a surer answer.
+                </div>}
                 <div style={{fontSize:11.5,color:"#9699A6",marginTop:5}}>Not right? Change either one below.</div>
               </>}
               {!busy && read && read.failed && <>
-                <div style={{fontSize:13.5,fontWeight:600,color:"#C58A16"}}>
+                <div style={{fontSize:13.5,fontWeight:700,color:"#C58A16"}}>
                   {read.reason==="not-connected" ? "Photo reading isn't switched on yet."
-                    : read.reason==="unclear"    ? "We couldn't tell from that photo."
-                                                 : "Something went wrong reading that photo."}
+                    : read.reason==="error"      ? "Something went wrong reading that photo."
+                    : (ISSUE_TEXT[read.issue] || "We couldn't tell from that photo.")}
                 </div>
                 <div style={{fontSize:12,color:"#676879",marginTop:3}}>
                   {read.reason==="unclear"
-                    ? "A side-on photo of your dog standing, whole body in frame, works best. Or just pick below."
+                    ? (read.hint || "Try a photo of your dog standing side-on, with their whole body in frame.")
                     : "Pick your dog's breed and build below instead."}
                 </div>
               </>}
-              <button onClick={clearPhoto} style={{marginTop:8,background:"none",border:"none",color:"#0073EA",
-                cursor:"pointer",fontFamily:"inherit",fontSize:12.5,padding:0}}>remove photo</button>
+              <div style={{display:"flex",gap:12,alignItems:"center",marginTop:9,flexWrap:"wrap"}}>
+                {(read && (read.failed || read.issue)) &&
+                  <label style={{display:"inline-block",cursor:"pointer"}}>
+                    <span style={{display:"inline-block",padding:"8px 16px",borderRadius:999,background:"#FF6D1F",
+                                  color:"#fff",fontWeight:700,fontSize:12.5}}>Upload another photo</span>
+                    <input type="file" accept="image/*" onChange={onPhoto} style={{display:"none"}}/>
+                  </label>}
+                <button onClick={clearPhoto} style={{background:"none",border:"none",color:"#0073EA",
+                  cursor:"pointer",fontFamily:"inherit",fontSize:12.5,padding:0}}>remove photo</button>
+              </div>
             </div>
           </div>
         )}

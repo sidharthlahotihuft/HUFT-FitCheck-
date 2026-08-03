@@ -6,9 +6,19 @@ breeds we hold data for, and this asks a vision model for two things:
 
 - **breed** — constrained to the list we sent, or `null` if it will not commit
 - **build** — `lean`, `average`, `broad`, or `null`
+- **photoIssue** + **retryHint** — what was wrong with the photo, if anything, and
+  one plain-language sentence telling the owner what to take instead
 
-Either can come back `null` independently. The screen then asks the customer only
-for the part it could not read.
+Either answer can come back `null` independently. The screen then asks the customer
+only for the part it could not read, and — when there is a `photoIssue` — names the
+problem and offers an "Upload another photo" button. `photoIssue` is set even when
+the read succeeded, if a better photo would have raised confidence.
+
+`photoIssue` is one of: `not-side-on`, `sitting-or-lying`, `cropped`, `too-far`,
+`too-close`, `dark-or-blurry`, `obscured`, `multiple-dogs`, `no-dog`. Anything else
+is discarded. The customer-facing wording for each lives in `ISSUE_TEXT` in
+`index.html` — the model supplies only the hint sentence, not the diagnosis text,
+so the tone stays consistent.
 
 The API key lives here, on the server. It must never go into `index.html` — that
 file is downloaded by every customer.

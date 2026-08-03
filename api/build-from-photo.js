@@ -30,6 +30,23 @@ const BUILD_DESC =
 const NOTE_DESC =
   "One short friendly sentence the dog's owner will read, in plain language. Mention the breed and " +
   "the build. No jargon, no body-condition scores, no comment on the dog's health or weight.";
+const ISSUE_DESC =
+  "What is wrong with this photo for judging build, if anything. " +
+  "none = the photo is fine. " +
+  "not-side-on = taken from the front, the back, or above. " +
+  "sitting-or-lying = the dog is not standing on all four legs. " +
+  "cropped = part of the body is out of frame. " +
+  "too-far = the dog is too small in the frame to judge. " +
+  "too-close = only the head or part of the body fills the frame. " +
+  "dark-or-blurry = too dark, too blurry, or heavily filtered. " +
+  "obscured = the dog is wearing a coat or harness, or is behind something. " +
+  "multiple-dogs = more than one dog. " +
+  "no-dog = there is no dog in the photo.";
+const HINT_DESC =
+  "If there is an issue, one short sentence telling the owner what photo to take instead. " +
+  "Friendly, plain language, no blame. Empty string if there is no issue.";
+const ISSUES = ["none","not-side-on","sitting-or-lying","cropped","too-far","too-close",
+                "dark-or-blurry","obscured","multiple-dogs","no-dog"];
 
 const PROMPT = (breeds) => `You are sizing a dog for pet clothing and walking gear, for an Indian pet shop.
 
@@ -47,6 +64,8 @@ Most dogs in India are mixed breed. If the dog is clearly a mix, or you are not 
 
 Do not guess. "unclear" is a good answer and costs us nothing — we simply ask the owner instead. A wrong answer sends them the wrong size.
 
+3. PHOTO QUALITY — set photoIssue to whatever is stopping you, or "none" if the photo is fine. Set it even when you did manage an answer, if a better photo would have made you more confident. When there is an issue, write retryHint: one short friendly sentence telling the owner what to photograph instead. Say what to do, not what they did wrong.
+
 Never comment on whether the dog is overweight, underweight or unwell. The note is read by the owner.`;
 
 const schemaProps = (breeds) => ({
@@ -54,9 +73,11 @@ const schemaProps = (breeds) => ({
   breedConfidence: { type: "number", description: "0 to 1." },
   build: { type: "string", enum: ["lean", "average", "broad", "unclear"], description: BUILD_DESC },
   buildConfidence: { type: "number", description: "0 to 1." },
-  note: { type: "string", description: NOTE_DESC }
+  note: { type: "string", description: NOTE_DESC },
+  photoIssue: { type: "string", enum: ISSUES, description: ISSUE_DESC },
+  retryHint: { type: "string", description: HINT_DESC }
 });
-const REQUIRED = ["breed", "breedConfidence", "build", "buildConfidence", "note"];
+const REQUIRED = ["breed", "breedConfidence", "build", "buildConfidence", "note", "photoIssue", "retryHint"];
 
 /* ---------------- OpenAI ---------------- */
 async function askOpenAI(key, image, mediaType, breeds) {
@@ -159,12 +180,15 @@ module.exports = async function handler(req, res) {
     const breedOK = list.includes(out.breed) && out.breedConfidence >= MIN_BREED_CONF;
     const buildOK = ["lean", "average", "broad"].includes(out.build) && out.buildConfidence >= MIN_BUILD_CONF;
 
+    const issue = ISSUES.includes(out.photoIssue) ? out.photoIssue : "none";
     return res.status(200).json({
       breed: breedOK ? out.breed : null,
       breedConfidence: out.breedConfidence,
       build: buildOK ? out.build : null,
       buildConfidence: out.buildConfidence,
-      note: breedOK || buildOK ? out.note || "" : ""
+      note: breedOK || buildOK ? out.note || "" : "",
+      photoIssue: issue === "none" ? null : issue,
+      retryHint: issue === "none" ? "" : (out.retryHint || "")
     });
   } catch (e) {
     console.error(e);
