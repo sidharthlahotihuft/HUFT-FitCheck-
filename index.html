@@ -1115,6 +1115,29 @@ const CAT_GROUPS={
   "Accessories":["Bandana"]
 };
 function groupOfCat(c){ for(const g in CAT_GROUPS) if(CAT_GROUPS[g].includes(c)) return g; return "Other"; }
+/* REC_SALES.pair is the two candidate sizes for a breed, smallest first, and
+   .base is the one customers kept most. base is OFTEN the larger of the two —
+   so "the other size in the pair" is a size DOWN, not up. Never use it directly. */
+const SIZE_LADDER=["2XS","XS","XS/S","S","S/M","M","M/L","L","L/XL","XL","XL/2XL","2XL","3XL","4XL","5XL","6XL","7XL"];
+const SIZE_RANK={}; SIZE_LADDER.forEach((s,i)=>{SIZE_RANK[s]=i;});
+function normSize(s){ return s==="XXS"?"2XS" : s==="XXL"?"2XL" : s; }
+function rankOf(s){ const r=SIZE_RANK[normSize(s)]; return r==null?-1:r; }
+function catLadder(cat){
+  const set=new Set();
+  Object.values((typeof PRODUCT_CHARTS==="undefined"?{}:PRODUCT_CHARTS)[cat]||{})
+    .forEach(p=>(p.sizes||[]).forEach(z=>{ if(!z.includes("/")) set.add(normSize(z)); }));
+  return [...set].filter(z=>rankOf(z)>=0).sort((a,b)=>rankOf(a)-rankOf(b));
+}
+/* The size a broad & sturdy dog should take. Prefer the pair when it genuinely
+   points upward; otherwise step up the category's own ladder. */
+function sizeUpFor(cat,r){
+  const up=(r.pair||[]).filter(z=>rankOf(z)>rankOf(r.base));
+  if(up.length) return {size:up[0],note:""};
+  const lad=catLadder(cat), i=lad.indexOf(normSize(r.base));
+  if(i>=0 && i<lad.length-1) return {size:lad[i+1],note:""};
+  if(i>=0) return {size:null,note:"largest size made"};
+  return {size:null,note:"—"};
+}
 function chartVal(chart,k,i,unit){ return (chart&&chart[k]&&chart[k][i]!=null) ? chart[k][i]+" "+(unit||"cm") : null; }
 function chartRng(chart,lo,hi,i){
   if(!chart||!chart[lo]||chart[lo][i]==null) return null;
@@ -1163,7 +1186,11 @@ function CheckFitTab({onSwitchToCatalog}){
   const shownBreeds = bq.trim()
     ? breeds.filter(b=>b.toLowerCase().includes(bq.trim().toLowerCase()))
     : breeds;
-  const allProds = cat ? Object.keys(PRODUCT_CHARTS[cat]||{}).sort() : [];
+  // only products we can actually size for THIS breed — a greyed-out row still
+  // reads as an option, and there is nothing behind it
+  const allProds = cat
+    ? Object.keys(PRODUCT_CHARTS[cat]||{}).filter(p=>((PRODUCT_RECS[cat]||{})[p]||{})[breed]).sort()
+    : [];
   const shownProds = pq.trim()
     ? allProds.filter(p=>p.toLowerCase().includes(pq.trim().toLowerCase()))
     : allProds;
@@ -1220,26 +1247,24 @@ function CheckFitTab({onSwitchToCatalog}){
       <div style={{fontWeight:700,fontSize:16,marginBottom:3}}>What are you buying for your {breed}?</div>
       <div style={{fontSize:12.5,color:"#676879",marginBottom:12}}>Choose the type first, then the exact product.</div>
       <div style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:14}}>
-        {cats.map(c=>(
+        {cats.filter(c=>Object.values(PRODUCT_RECS[c]||{}).some(m=>m[breed])).map(c=>(
           <button key={c} onClick={()=>{setCat(c);setProd("");setPq("");}} style={pill(cat===c)}>{c}</button>
         ))}
       </div>
       {cat && <>
         {allProds.length>12 && <input value={pq} onChange={e=>setPq(e.target.value)} placeholder={`Search ${allProds.length} ${cat.toLowerCase()} products…`} style={{...sel,marginBottom:10}}/>}
         <div style={{maxHeight:320,overflowY:"auto",border:"1px solid #EAECF2",borderRadius:8}}>
-          {shownProds.map(p=>{
-            const has=(((PRODUCT_RECS[cat]||{})[p]||{})[breed]);
-            return (
-            <button key={p} onClick={()=>{setProd(p);setStep(3);}} disabled={!has}
+          {shownProds.map(p=>(
+            <button key={p} onClick={()=>{setProd(p);setStep(3);}}
               style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",width:"100%",
                 padding:"11px 14px",border:"none",borderBottom:"1px solid #EAECF2",background:"#fff",
-                cursor:has?"pointer":"default",fontFamily:"inherit",fontSize:13.5,textAlign:"left",
-                color:has?"#323338":"#B6B9C6"}}>
-              <span>{p}</span>
-              <span style={{fontSize:11.5,color:"#9699A6",whiteSpace:"nowrap"}}>{has?"→":"no size data"}</span>
-            </button>);
-          })}
-          {shownProds.length===0 && <div style={{padding:14,fontSize:13,color:"#9699A6"}}>No product matches “{pq}”.</div>}
+                cursor:"pointer",fontFamily:"inherit",fontSize:13.5,textAlign:"left",color:"#323338"}}>
+              <span>{p}</span><span style={{fontSize:11.5,color:"#9699A6"}}>→</span>
+            </button>
+          ))}
+          {shownProds.length===0 && <div style={{padding:14,fontSize:13,color:"#9699A6"}}>
+            {pq.trim() ? <>No {cat.toLowerCase()} matches “{pq}”.</> : <>We have no size data for a {breed} in {cat.toLowerCase()} yet.</>}
+          </div>}
         </div>
       </>}
     </section>}
@@ -1331,7 +1356,6 @@ function FitCatalogTab({onAsk}){
   const subs = (CAT_GROUPS[grp]||[]).filter(c=>liveCats.includes(c));
   const activeSub = subs.includes(sub) ? sub : subs[0];
   const allProds = Object.keys((PRODUCT_CHARTS||{})[activeSub]||{}).sort();
-  const prods = pq.trim() ? allProds.filter(p=>p.toLowerCase().includes(pq.trim().toLowerCase())) : allProds;
 
   const card={background:"#fff",borderRadius:10,border:"1px solid #E6E9EF",padding:16,marginBottom:12};
   const sel={padding:"10px 12px",borderRadius:8,border:"1.5px solid #C3C6D4",fontFamily:"inherit",fontSize:13.5,background:"#fff",minWidth:170};
@@ -1348,6 +1372,13 @@ function FitCatalogTab({onAsk}){
                 n:info.n,keep:info.keepRate,conf:info.conf,gap:info.gap};
       });
   };
+  // A product with no recommendation for the chosen breed is not shown at all —
+  // an empty row reads as "we checked and it does not fit", which is not what it means.
+  const prods = allProds
+    .filter(p=>!pq.trim()||p.toLowerCase().includes(pq.trim().toLowerCase()))
+    .filter(p=>recRows(activeSub,p).length>0);
+  const hidden = allProds.length - allProds.filter(p=>recRows(activeSub,p).length>0).length;
+
   const exportSub = ()=>{
     const head=["Category","Product","Applies to SKU","Breed","RECOMMENDED size (lean or average)",
       "RECOMMENDED size measurements","Size up (broad & sturdy)","Size up measurements",
@@ -1393,8 +1424,9 @@ function FitCatalogTab({onAsk}){
         </div>
         <div style={{fontSize:12,color:"#676879"}}>
           {prods.length} product{prods.length===1?"":"s"} in {activeSub}
-          {bFilter!=="All breeds" && <> · showing {bFilter} only</>}
-          {" "}· the download gives you every breed × SKU row for {activeSub} with all measurements.
+          {bFilter!=="All breeds" && <> that we have {bFilter} data for</>}
+          {hidden>0 && <> · {hidden} hidden with no sales evidence{bFilter!=="All breeds"?` for ${bFilter}`:""}</>}
+          {" "}· the download gives you every breed × SKU row shown here.
         </div>
       </section>
 
@@ -1447,8 +1479,8 @@ function FitCatalogTab({onAsk}){
       const gaps=cats.filter(c=>bySize[c].gap);
       const exportBreed=()=>{
         const out=[["Breed","Category","RECOMMENDED size","Size up (broad & sturdy)","Kept in 12m","Keep rate %","Confidence","New size needed?"]];
-        cats.forEach(c=>{const r=bySize[c];
-          out.push([breed,c,r.base,(r.pair||[]).filter(s=>s!==r.base)[0]||"",r.n,r.keepRate==null?"":r.keepRate,r.conf,r.gap||"no"]);});
+        cats.forEach(c=>{const r=bySize[c]; const up=sizeUpFor(c,r);
+          out.push([breed,c,r.base,up.size||up.note,r.n,r.keepRate==null?"":r.keepRate,r.conf,r.gap||"no"]);});
         downloadCSV(out,`HUFT_${breed.replace(/[^A-Za-z]/g,"")}_by_category.csv`);
       };
       return (<>
@@ -1488,12 +1520,12 @@ function FitCatalogTab({onAsk}){
           <div style={{overflowX:"auto"}}><table style={{borderCollapse:"collapse",fontSize:12.5,width:"100%"}}>
             <thead><tr>{["Category","RECOMMENDED size","Size up (broad & sturdy)","Kept 12m","Keep rate","Confidence","New size needed?"].map(h=>
               <th key={h} style={{textAlign:"left",padding:"7px 9px",borderBottom:"1.5px solid #E6E9EF",color:"#676879",fontWeight:600,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
-            <tbody>{cats.map(c=>{const r=bySize[c]; const up=(r.pair||[]).filter(s=>s!==r.base)[0];
+            <tbody>{cats.map(c=>{const r=bySize[c]; const up=sizeUpFor(c,r);
               return (
               <tr key={c} style={{borderBottom:"1px solid #F2F3F7"}}>
                 <td style={{padding:"7px 9px",fontWeight:600}}>{c}</td>
                 <td style={{padding:"7px 9px",fontWeight:700,color:"#BA4511"}}>{r.base}</td>
-                <td style={{padding:"7px 9px"}}>{up||<span style={{color:"#9699A6"}}>—</span>}</td>
+                <td style={{padding:"7px 9px"}}>{up.size||<span style={{color:"#9699A6"}}>{up.note}</span>}</td>
                 <td style={{...S_MONO,padding:"7px 9px",color:"#676879"}}>{r.n.toLocaleString()}</td>
                 <td style={{...S_MONO,padding:"7px 9px",color:keepColour(r.keepRate),fontWeight:600}}>{r.keepRate!=null?r.keepRate+"%":"—"}</td>
                 <td style={{padding:"7px 9px",color:"#676879"}}>{r.conf}</td>
