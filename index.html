@@ -1171,19 +1171,39 @@ function downloadCSV(rows,fname){
   a.download=fname; a.click(); URL.revokeObjectURL(a.href);
 }
 /* ---- build from a photo ----------------------------------------------------
-   Nothing in this file can look at a photo. The browser can hold the image and
-   show it back, but judging lean vs broad needs a vision model, and a model needs
-   a key, and a key cannot sit in a static page every customer downloads.
-   So: point BUILD_API at a small serverless endpoint that takes the image and
-   returns {build, confidence, note}. Until that exists, the photo step tells the
-   customer plainly that we could not read it and falls back to the question.
-   Never guess a build from an unanswered photo — a wrong size ships a return. */
-const BUILD_API = "";   // e.g. "https://huft-fit.vercel.app/api/build-from-photo"
-async function analyseBuild(file){
+   The browser cannot judge a dog's build — that needs a vision model, and a model
+   needs an API key, which cannot sit in a page every customer downloads. So the
+   photo goes to /api/build-from-photo (see api/build-from-photo.js), which holds
+   the key server-side and returns {build, confidence, note}.
+   Deploy on Vercel and set ANTHROPIC_API_KEY; it works with no other change.
+   If the endpoint is missing or unsure, we ASK. We never guess a build —
+   a guessed build ships a wrong size, which is the thing this tool exists to stop. */
+const BUILD_API = "/api/build-from-photo";
+const MAX_PHOTO_PX = 1200;     // downscale before upload — a 12MP phone photo is pointless here
+
+function shrink(file){
+  return new Promise((resolve,reject)=>{
+    const img=new Image(), url=URL.createObjectURL(file);
+    img.onload=()=>{
+      const scale=Math.min(1, MAX_PHOTO_PX/Math.max(img.width,img.height));
+      const c=document.createElement("canvas");
+      c.width=Math.round(img.width*scale); c.height=Math.round(img.height*scale);
+      c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+      URL.revokeObjectURL(url);
+      resolve({ data:c.toDataURL("image/jpeg",0.85).split(",")[1], mediaType:"image/jpeg" });
+    };
+    img.onerror=()=>{ URL.revokeObjectURL(url); reject(new Error("not an image")); };
+    img.src=url;
+  });
+}
+
+async function analyseBuild(file,breed){
   if(!BUILD_API) return {ok:false,reason:"not-connected"};
   try{
-    const fd=new FormData(); fd.append("photo",file);
-    const r=await fetch(BUILD_API,{method:"POST",body:fd});
+    const {data,mediaType}=await shrink(file);
+    const r=await fetch(BUILD_API,{method:"POST",headers:{"content-type":"application/json"},
+      body:JSON.stringify({image:data,mediaType,breed})});
+    if(r.status===404 || r.status===405) return {ok:false,reason:"not-connected"};
     if(!r.ok) return {ok:false,reason:"error"};
     const j=await r.json();
     if(!["lean","average","broad"].includes(j.build)) return {ok:false,reason:"unclear"};
@@ -1234,7 +1254,7 @@ function CheckFitTab({onSwitchToCatalog}){
   const onPhoto=async(e)=>{
     const f=e.target.files&&e.target.files[0]; if(!f) return;
     clearPhoto(); setPhoto({url:URL.createObjectURL(f),name:f.name}); setBusy(true);
-    const r=await analyseBuild(f); setBusy(false);
+    const r=await analyseBuild(f,breed); setBusy(false);
     if(r.ok){ setGuess(r); setBuild(r.build); } else { setGuess({failed:true,reason:r.reason}); }
   };
 
@@ -1340,7 +1360,11 @@ function CheckFitTab({onSwitchToCatalog}){
                       ? "We couldn't tell from that photo."
                       : "Something went wrong reading that photo."}
                 </div>
-                <div style={{fontSize:12,color:"#676879",marginTop:3}}>Tell us below instead — it takes one tap.</div>
+                <div style={{fontSize:12,color:"#676879",marginTop:3}}>
+                  {guess.reason==="unclear"
+                    ? "A side-on photo of your dog standing, with their whole body in frame, works best. Or just tell us below."
+                    : "Tell us below instead — it takes one tap."}
+                </div>
               </>}
               <button onClick={clearPhoto} style={{marginTop:8,background:"none",border:"none",color:"#0073EA",
                 cursor:"pointer",fontFamily:"inherit",fontSize:12.5,padding:0}}>remove photo</button>
