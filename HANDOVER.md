@@ -104,6 +104,50 @@ Two earlier tabs were removed, both deliberately: the old **Fit checker** (enter
 
 ## 4. How a recommendation is actually made
 
+### Ten breeds are missing from the breed KB
+
+47 breeds carry sales data; the KB in `index.html` holds 51. They are not the same 47. **Ten breeds with sales data have no KB entry under that name**, and until 3 Aug they therefore had no size group at all and disappeared from every group filter — which is why Small showed 5 breeds instead of 11.
+
+| Breed with sales data | KB status | Group assigned |
+|---|---|---|
+| Dachshund | KB calls it "Dachshund (Standard)" | Small |
+| Greyhound / Sighthound | KB has "Rampur Greyhound" (Native) | Large |
+| German Spitz, Bichon Frise, Havanese, Miniature Schnauzer, Cavalier King Charles Spaniel | absent | Small |
+| Akita, Dogo Argentino, Pointer / Setter | absent | Large |
+
+`GROUP_FALLBACK` in `FitCatalogTab` fills the group so the filter works. **It fills nothing else** — these ten still have no neck, chest, weight or height in the KB, so they are absent from the Knowledge base screen and from anything measurement-based.
+
+Mapped by hand on purpose. A fuzzy name match would have paired "German Spitz" with "German Shepherd" — a toy breed onto a large one.
+
+**The real fix is to add the ten to the KB properly**, at which point the fallback becomes dead code. Until then, group filters are complete but the KB is not.
+
+### Combined size labels in Odoo are a data fault — do not restore them
+
+Nine gear products carry a size label in Odoo that is not a size HUFT sells: the SKU suffix on `DSDGCLH042` literally reads `XL/2XL`, and others read `XS/S`, `M/L`, `S/M`, `L/XL`. A customer must never be shown two sizes at once, so `build_gear.py` resolves each of these to the single real size (the first half) before anything downstream sees it. `XS/S → XS`, `M/L → M`, `XL/2XL → XL`.
+
+The raw label is kept on the chart as `odooSizes` and surfaced in the catalog, because the **SKU suffix still uses it** — a store assistant ordering `DSDGCLH042XL/2XL` needs to know that is the same thing as the XL we recommend. The catalog shows an amber note on those nine products saying exactly that.
+
+**The right fix is in the product master, not here.** Once Odoo carries real size names, the normalisation becomes a no-op and the amber note disappears on its own.
+
+Affected: Dash Dog Flow Walk-Along, HexaStreak Walk Along, Super Stride Walk Along, Radiant Blaze Easy Walk, Vector Easy Walk, Walk Pro (all Harness), HUFT Trooper Drag Bag, HUFT Basics Leash, HUFT Classic Dog Leash.
+
+### Which size each build takes — clothing and gear differ (3 Aug 2026)
+
+Every recommendation has two candidate sizes: **i**, the size customers kept most, and **j**, one step up that product's own ladder. Which one a build takes depends on the category.
+
+| | Lean | Average | Broad & sturdy |
+|---|---|---|---|
+| **Clothing** (raincoat, sweater, sweatshirt, t-shirt, kurta, shirt, sherwani, jacket, dress) | i | **j** | j |
+| **Gear** (collar, leash, harness, leash & harness, collar & leash, bandana) | i | **i** | j |
+
+Clothing leans large because 66% of the 3,110 recorded exchanges went UP, and a slightly loose garment still works while a tight one comes back.
+
+**Gear deliberately does not, and this is not an oversight.** An adjustable band has a hard lower limit that a garment does not. Checking every gear recommendation against the breed KB measurements: making average take the larger size would raise the share of rows where the band **cannot physically close tight enough** from 13% to 28% overall, and from 31% to 59% for toy breeds. A Chihuahua would have been offered an Xplorers harness in M — a 67–92 cm chest band on a 30–43 cm chest.
+
+The rule lives in exactly two places, `buildSizes()` in `index.html` and `builds()` in `write_all_wb.py`. Change both or neither.
+
+Note the 13% baseline: even at the most-kept size, one gear row in eight has a band that does not overlap the KB measurement. That is the Odoo dimensions and the KB disagreeing, and it is unresolved — see limitation 8.
+
 ### Colour variants are merged (added 3 Aug 2026)
 
 Most gear SKUs are the same product in another colour and carry the same size chart, so they were collapsing the same row five times over. Products now merge on **base name + an identical size chart**: 305 → 220. The merged entry keeps every SKU code and lists the colours.

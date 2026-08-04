@@ -1115,6 +1115,18 @@ const CAT_GROUPS={
   "Accessories":["Bandana"]
 };
 function groupOfCat(c){ for(const g in CAT_GROUPS) if(CAT_GROUPS[g].includes(c)) return g; return "Other"; }
+/* Which size each build takes. i is the size customers kept most, j is one step up.
+   APPAREL leans large: 66% of recorded exchanges go up, and a garment that is
+   slightly loose still works, while a tight one comes back.
+   ADJUSTABLE GEAR does not: a collar or harness band has a hard lower limit, so
+   sizing up on a small dog gives them something that cannot be pulled tight
+   enough. Checked against the breed measurements — always taking the bigger size
+   here would leave 59% of toy-breed gear rows physically unable to fit. */
+const APPAREL_CATS = new Set(CAT_GROUPS["Clothing"]);
+function buildSizes(cat,i,j){
+  return APPAREL_CATS.has(cat) ? {lean:i, average:j, broad:j}
+                               : {lean:i, average:i, broad:j};
+}
 /* REC_SALES.pair is the two candidate sizes for a breed, smallest first, and
    .base is the one customers kept most. base is OFTEN the larger of the two —
    so "the other size in the pair" is a size DOWN, not up. Never use it directly. */
@@ -1130,6 +1142,13 @@ function catLadder(cat){
 }
 /* The size a broad & sturdy dog should take. Prefer the pair when it genuinely
    points upward; otherwise step up the category's own ladder. */
+/* Category-level version of buildSizes. Same rule: apparel leans large for an
+   average dog, adjustable gear does not. */
+function catBuilds(cat,r){
+  const up=sizeUpFor(cat,r), bigger=up.size||r.base;
+  return APPAREL_CATS.has(cat) ? {lean:r.base, average:bigger, broad:bigger}
+                               : {lean:r.base, average:r.base, broad:bigger};
+}
 function sizeUpFor(cat,r){
   const up=(r.pair||[]).filter(z=>rankOf(z)>rankOf(r.base));
   if(up.length) return {size:up[0],note:""};
@@ -1318,9 +1337,9 @@ function CheckFitTab(){
     if(r.ok){ setRead(r); if(r.breed) setBreed(r.breed); if(r.build) setBuild(r.build); }
     else setRead({failed:true,reason:r.reason,issue:r.issue,hint:r.hint});
   };
-  const BUILDS=[["lean","🏃","Lean","Ribs easy to feel, tucked waist"],
-                ["average","⚖️","Average","Typical for the breed"],
-                ["broad","🍖","Broad & sturdy","Deep chest, heavy set, or a thick winter coat"]];
+  const BUILDS=[["lean","🏃","Lean","Ribs easy to feel, clear waist tuck."],
+                ["average","⚖️","Average","Typical for the breed."],
+                ["broad","🍖","Broad & sturdy","Deep chest, heavy set, or a thick winter coat."]];
 
   return (<>
     <section style={{...card,paddingBottom:14}}>
@@ -1480,13 +1499,13 @@ function CheckFitTab(){
     {step===3 && (()=>{
       if(!rec) return <section style={card}><p style={{margin:0,color:"#9699A6"}}>We don’t have enough data for this combination yet.</p></section>;
       const [i,j]=rec;
-      const k = build==="broad" ? j : i;
+      const k = buildSizes(cat,i,j)[build];
       const size = chart.sizes[k];
-      const topOut = build==="broad" && j===i;
+      const topOut = k===j && j===i;
       return (<>
         <section style={{...card,background:"#FEF1E5",border:"1.5px solid #FF6D1F",textAlign:"center",padding:"26px 18px"}}>
           <div style={{fontSize:11.5,letterSpacing:"0.07em",textTransform:"uppercase",color:"#BA4511",fontWeight:700}}>Recommended size</div>
-          <div style={{fontSize:52,fontWeight:700,color:"#BA4511",lineHeight:1.1,margin:"4px 0"}}>{size}</div>
+          <div style={{fontSize:52,fontWeight:700,color:"#BA4511",lineHeight:1.1,margin:"4px 0",whiteSpace:"nowrap"}}>{size}</div>
           <div style={{fontSize:13.5,color:"#40434E"}}>for {build==="average"?"an average":build==="broad"?"a broad & sturdy":"a lean"} {breed}</div>
           <div style={{...S_MONO,fontSize:12,color:"#676879",marginTop:10,lineHeight:1.7}}>
             {Object.entries(chartDims(chart,k)||{}).filter(([,v])=>v!=null&&v!=="").map(([lbl,v])=><div key={lbl}>{lbl} {v}</div>)}
@@ -1535,9 +1554,38 @@ function FitCatalogTab({onAsk}){
   const [pq,setPq]       = React.useState("");
   const [openP,setOpenP] = React.useState("");
   const [bFilter,setBFilter] = React.useState("All breeds");
+  const [gFilter,setGFilter] = React.useState("All groups");
   const [breed,setBreed] = React.useState("Labrador Retriever");
 
-  const breeds = Object.keys(BREED_FIT||{}).sort();
+  const allBreeds = Object.keys(BREED_FIT||{}).sort();
+  /* Group comes from the breed knowledge base. Ten breeds carry sales data but are
+     either absent from the KB or named differently there, and without a group they
+     vanished from every group filter — which is why Small and Toy looked almost
+     empty. Mapped explicitly rather than fuzzy-matched: "German Spitz" is not
+     "German Shepherd", and a fuzzy match would have made exactly that mistake. */
+  const GROUP_FALLBACK = {
+    "Dachshund":"Small",                    // KB has it as "Dachshund (Standard)"
+    "Greyhound / Sighthound":"Large",       // KB has "Rampur Greyhound" under Native
+    "German Spitz":"Small",
+    "Bichon Frise":"Small",
+    "Havanese":"Small",
+    "Miniature Schnauzer":"Small",
+    "Cavalier King Charles Spaniel":"Small",
+    "Akita":"Large",
+    "Dogo Argentino":"Large",
+    "Pointer / Setter":"Large"
+  };
+  const GROUP_OF = React.useMemo(()=>{
+    const m={}; (typeof BREEDS==="undefined"?[]:BREEDS).forEach(b=>{m[b.name]=b.group;});
+    Object.keys(GROUP_FALLBACK).forEach(k=>{ if(!m[k]) m[k]=GROUP_FALLBACK[k]; });
+    return m;
+  },[]);
+  const groupList = React.useMemo(()=>{
+    const order=["Toy","Small","Medium","Large","Giant","Native"];
+    const present=new Set(allBreeds.map(b=>GROUP_OF[b]).filter(Boolean));
+    return order.filter(g=>present.has(g)).concat([...present].filter(g=>!order.includes(g)).sort());
+  },[allBreeds,GROUP_OF]);
+  const breeds = gFilter==="All groups" ? allBreeds : allBreeds.filter(b=>GROUP_OF[b]===gFilter);
   const liveCats = Object.keys(PRODUCT_CHARTS||{});
   const groups = Object.keys(CAT_GROUPS).filter(g=>CAT_GROUPS[g].some(c=>liveCats.includes(c)));
   const subs = (CAT_GROUPS[grp]||[]).filter(c=>liveCats.includes(c));
@@ -1552,10 +1600,12 @@ function FitCatalogTab({onAsk}){
   const recRows = (cat,pname)=>{
     const chart=(PRODUCT_CHARTS[cat]||{})[pname]; const R=((PRODUCT_RECS[cat]||{})[pname]||{});
     return Object.keys(R).sort()
+      .filter(b=>gFilter==="All groups"||GROUP_OF[b]===gFilter)
       .filter(b=>bFilter==="All breeds"||b===bFilter)
       .map(b=>{
         const [i,j]=R[b]; const info=(REC_SALES[b]||{})[cat]||{};
-        return {breed:b,rec:chart.sizes[i],up:chart.sizes[j],i,j,chart,
+        return {breed:b,group:GROUP_OF[b]||"",rec:chart.sizes[i],up:chart.sizes[j],i,j,chart,
+                b:buildSizes(cat,i,j),
                 n:info.n,keep:info.keepRate,conf:info.conf,gap:info.gap};
       });
   };
@@ -1567,15 +1617,18 @@ function FitCatalogTab({onAsk}){
   const hidden = allProds.length - allProds.filter(p=>recRows(activeSub,p).length>0).length;
 
   const exportSub = ()=>{
-    const head=["Category","Product","Applies to SKU","Breed","RECOMMENDED size (lean or average)",
-      "RECOMMENDED size measurements","Size up (broad & sturdy)","Size up measurements",
-      "Kept in 12m (category)","Keep rate % (category)","Confidence","New size needed?","Measurement source"];
+    const head=["Category","Product","Applies to SKU","Breed","Breed group",
+      "Lean build","RECOMMENDED — average build","Broad & sturdy build",
+      "Measurements of the recommended size",
+      "Kept in 12m (category)","Keep rate of the most-kept size % (category)","Confidence",
+      "New size needed?","Measurement source"];
     const fmt=d=>Object.entries(d||{}).filter(([,v])=>v!=null&&v!=="").map(([k,v])=>k+" "+v).join("; ");
     const out=[head];
     prods.forEach(p=>{
       const chart=(PRODUCT_CHARTS[activeSub]||{})[p];
-      recRows(activeSub,p).forEach(r=>out.push([activeSub,p,(chart.skuNames||[]).join(" | "),r.breed,
-        r.rec,fmt(chartDims(chart,r.i)),r.up,fmt(chartDims(chart,r.j)),
+      recRows(activeSub,p).forEach(r=>out.push([activeSub,p,(chart.skuNames||[]).join(" | "),r.breed,r.group,
+        chart.sizes[r.b.lean],chart.sizes[r.b.average],chart.sizes[r.b.broad],
+        fmt(chartDims(chart,r.b.average)),
         r.n==null?"":r.n,r.keep==null?"":r.keep,r.conf||"",r.gap||"no",chart.src]));
     });
     downloadCSV(out,`HUFT_${activeSub.replace(/[^A-Za-z]/g,"")}_breed_recommendations.csv`);
@@ -1603,7 +1656,10 @@ function FitCatalogTab({onAsk}){
           <select value={activeSub||""} onChange={e=>{setSub(e.target.value);setOpenP("");setPq("");}} style={sel}>
             {subs.map(c=><option key={c} value={c}>{c} ({Object.keys(PRODUCT_CHARTS[c]).length})</option>)}
           </select>
-          <select value={bFilter} onChange={e=>setBFilter(e.target.value)} style={sel}>
+          <select value={gFilter} onChange={e=>{setGFilter(e.target.value);setBFilter("All breeds");}} style={sel}>
+            {["All groups",...groupList].map(g=><option key={g} value={g}>{g==="All groups"?g:g+" breeds"}</option>)}
+          </select>
+          <select value={breeds.includes(bFilter)?bFilter:"All breeds"} onChange={e=>setBFilter(e.target.value)} style={sel}>
             {["All breeds",...breeds].map(b=><option key={b} value={b}>{b}</option>)}
           </select>
           {allProds.length>10 && <input value={pq} onChange={e=>setPq(e.target.value)} placeholder="search SKU…" style={{...sel,minWidth:150}}/>}
@@ -1611,9 +1667,10 @@ function FitCatalogTab({onAsk}){
         </div>
         <div style={{fontSize:12,color:"#676879"}}>
           {prods.length} product{prods.length===1?"":"s"} in {activeSub}
-          {bFilter!=="All breeds" && <> that we have {bFilter} data for</>}
-          {hidden>0 && <> · {hidden} hidden with no sales evidence{bFilter!=="All breeds"?` for ${bFilter}`:""}</>}
-          {" "}· the download gives you every breed × SKU row shown here.
+          {gFilter!=="All groups" && <> for {gFilter.toLowerCase()} breeds ({breeds.length})</>}
+          {bFilter!=="All breeds" && <> · {bFilter} only</>}
+          {hidden>0 && <> · {hidden} hidden with no sales evidence</>}
+          {" "}· the download gives you every row shown here.
         </div>
       </section>
 
@@ -1636,6 +1693,13 @@ function FitCatalogTab({onAsk}){
             <span style={{fontSize:12,color:"#676879",whiteSpace:"nowrap"}}>{rows.length} breeds {open?"▾":"▸"}</span>
           </button>
           {open && <div style={{padding:"0 16px 16px"}}>
+            {chart.odooSizes && <div style={{fontSize:11.5,color:"#C58A16",background:"#FEF7ED",
+              borderRadius:8,padding:"8px 11px",marginTop:8}}>
+              <b>Odoo has a combined size label on this product</b> — the SKU suffix reads{" "}
+              {chart.odooSizes.map((z,q)=><span key={q}><b>{z}</b>{q<chart.odooSizes.length-1?", ":""}</span>)}.
+              We show {chart.sizes.join(", ")}, because a customer must never be given two sizes at once.
+              Worth fixing in the product master so the two agree.
+            </div>}
             {(chart.colours||[]).length>0
               ? <div style={{fontSize:11.5,color:"#9699A6",padding:"8px 0"}}>
                   Same size chart across {chart.variants} colours: {chart.colours.join(", ")}
@@ -1643,15 +1707,17 @@ function FitCatalogTab({onAsk}){
                 </div>
               : (chart.skuNames||[]).length>0 && <div style={{fontSize:11.5,color:"#9699A6",padding:"8px 0"}}>Applies to: {chart.skuNames.join(", ")}</div>}
             <div style={{overflowX:"auto"}}><table style={{borderCollapse:"collapse",fontSize:12.5,width:"100%"}}>
-              <thead><tr>{["Breed","RECOMMENDED size","Measurements","Size up (broad & sturdy)",`Keep rate — all ${activeSub} for this breed`,"New size needed?"].map(h=>
+              <thead><tr>{["Breed","Group","Lean build","RECOMMENDED — average build","Broad & sturdy build","Measurements of the recommended size",`Keep rate — all ${activeSub} for this breed`,"New size needed?"].map(h=>
                 <th key={h} style={{textAlign:"left",padding:"7px 9px",borderBottom:"1.5px solid #E6E9EF",color:"#676879",fontWeight:600,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
               <tbody>{rows.map(r=>(
                 <tr key={r.breed} style={{borderBottom:"1px solid #F2F3F7"}}>
                   <td style={{padding:"7px 9px",fontWeight:600}}>{r.breed}</td>
-                  <td style={{padding:"7px 9px",fontWeight:700,color:"#BA4511"}}>{r.rec}</td>
+                  <td style={{padding:"7px 9px",color:"#676879"}}>{r.group}</td>
+                  <td style={{padding:"7px 9px",color:"#676879"}}>{r.chart.sizes[r.b.lean]}</td>
+                  <td style={{padding:"7px 9px",fontWeight:700,color:"#BA4511"}}>{r.chart.sizes[r.b.average]}</td>
+                  <td style={{padding:"7px 9px",color:"#676879"}}>{r.chart.sizes[r.b.broad]}</td>
                   <td style={{...S_MONO,padding:"7px 9px",color:"#676879",fontSize:11.5}}>
-                    {Object.entries(chartDims(r.chart,r.i)||{}).filter(([,v])=>v!=null&&v!=="").map(([k,v])=>k+" "+v).join(" · ")}</td>
-                  <td style={{padding:"7px 9px"}}>{r.up===r.rec?<span style={{color:"#9699A6"}}>largest size</span>:r.up}</td>
+                    {Object.entries(chartDims(r.chart,r.b.average)||{}).filter(([,v])=>v!=null&&v!=="").map(([k,v])=>k+" "+v).join(" · ")}</td>
                   <td style={{...S_MONO,padding:"7px 9px",color:keepColour(r.keep),fontWeight:600}}>
                     {r.keep!=null?r.keep+"%":"—"}
                     {r.n!=null && <span style={{color:"#9699A6",fontWeight:400}}> of {r.n.toLocaleString()}</span>}
@@ -1660,6 +1726,21 @@ function FitCatalogTab({onAsk}){
                 </tr>))}</tbody>
             </table></div>
             {rows.length===0 && <p style={{fontSize:13,color:"#9699A6"}}>No breed has enough sales evidence for this product yet.</p>}
+            {gFilter!=="All groups" && rows.length>0 && (()=>{
+              const tally={}; rows.forEach(r=>{const z=r.chart.sizes[r.b.average]; tally[z]=(tally[z]||0)+1;});
+              const sizes=chart.sizes.filter(z=>tally[z]);
+              return (
+                <div style={{background:"#F5F6F8",borderRadius:8,padding:"10px 13px",marginTop:10,fontSize:12.5}}>
+                  <b>{gFilter} breeds</b> on this product take{" "}
+                  {sizes.map((z,q)=>(
+                    <span key={z}>
+                      <b style={{color:"#BA4511"}}>{z}</b>
+                      <span style={{color:"#9699A6"}}> ({tally[z]} breed{tally[z]===1?"":"s"})</span>
+                      {q<sizes.length-1?" · ":""}
+                    </span>))}
+                  {sizes.length===1 && <span style={{color:"#676879"}}> — one size covers the whole group.</span>}
+                </div>);
+            })()}
             <div style={{fontSize:11,color:"#9699A6",marginTop:8,lineHeight:1.6}}>
               Keep rate is how often that breed kept the size we recommend, across <b>every {activeSub}</b> they bought — not this SKU alone. The sales pull groups by category and size, not by product code, so the figure repeats down the category. Re-pull grouped by base SKU if you need it per product.
             </div>
@@ -1676,15 +1757,20 @@ function FitCatalogTab({onAsk}){
       const cats=Object.keys(bySize).sort();
       const gaps=cats.filter(c=>bySize[c].gap);
       const exportBreed=()=>{
-        const out=[["Breed","Category","RECOMMENDED size","Size up (broad & sturdy)","Kept in 12m","Keep rate %","Confidence","New size needed?"]];
-        cats.forEach(c=>{const r=bySize[c]; const up=sizeUpFor(c,r);
-          out.push([breed,c,r.base,up.size||up.note,r.n,r.keepRate==null?"":r.keepRate,r.conf,r.gap||"no"]);});
+        const out=[["Breed","Group","Category","Lean build","RECOMMENDED — average build","Broad & sturdy build",
+                    "Kept in 12m","Keep rate of the most-kept size %","Confidence","New size needed?"]];
+        cats.forEach(c=>{const t=catBuilds(c,bySize[c]); const r=bySize[c];
+          out.push([breed,GROUP_OF[breed]||"",c,t.lean,t.average,t.broad,
+                    r.n,r.keepRate==null?"":r.keepRate,r.conf,r.gap||"no"]);});
         downloadCSV(out,`HUFT_${breed.replace(/[^A-Za-z]/g,"")}_by_category.csv`);
       };
       return (<>
         <section style={card}>
           <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-            <select value={breed} onChange={e=>setBreed(e.target.value)} style={{...sel,minWidth:220}}>
+            <select value={gFilter} onChange={e=>setGFilter(e.target.value)} style={sel}>
+              {["All groups",...groupList].map(g=><option key={g} value={g}>{g==="All groups"?g:g+" breeds"}</option>)}
+            </select>
+            <select value={breeds.includes(breed)?breed:(breeds[0]||"")} onChange={e=>setBreed(e.target.value)} style={{...sel,minWidth:220}}>
               {breeds.map(b=><option key={b} value={b}>{b}</option>)}
             </select>
             <button onClick={exportBreed} style={{...pill(false),border:"1.5px solid #00A25B",color:"#00753F",fontWeight:700}}>⬇  Download Excel</button>
@@ -1716,22 +1802,27 @@ function FitCatalogTab({onAsk}){
         <section style={card}>
           <div style={{fontWeight:700,fontSize:14.5,marginBottom:8}}>Every category — recommended size for {breed}</div>
           <div style={{overflowX:"auto"}}><table style={{borderCollapse:"collapse",fontSize:12.5,width:"100%"}}>
-            <thead><tr>{["Category","RECOMMENDED size","Size up (broad & sturdy)","Kept 12m","Keep rate","Confidence","New size needed?"].map(h=>
+            <thead><tr>{["Category","Lean build","RECOMMENDED — average build","Broad & sturdy build","Keep rate of the most-kept size","Confidence","New size needed?"].map(h=>
               <th key={h} style={{textAlign:"left",padding:"7px 9px",borderBottom:"1.5px solid #E6E9EF",color:"#676879",fontWeight:600,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
-            <tbody>{cats.map(c=>{const r=bySize[c]; const up=sizeUpFor(c,r);
+            <tbody>{cats.map(c=>{const r=bySize[c]; const t=catBuilds(c,r);
               return (
               <tr key={c} style={{borderBottom:"1px solid #F2F3F7"}}>
                 <td style={{padding:"7px 9px",fontWeight:600}}>{c}</td>
-                <td style={{padding:"7px 9px",fontWeight:700,color:"#BA4511"}}>{r.base}</td>
-                <td style={{padding:"7px 9px"}}>{up.size||<span style={{color:"#9699A6"}}>{up.note}</span>}</td>
-                <td style={{...S_MONO,padding:"7px 9px",color:"#676879"}}>{r.n.toLocaleString()}</td>
-                <td style={{...S_MONO,padding:"7px 9px",color:keepColour(r.keepRate),fontWeight:600}}>{r.keepRate!=null?r.keepRate+"%":"—"}</td>
+                <td style={{padding:"7px 9px",color:"#676879"}}>{t.lean}</td>
+                <td style={{padding:"7px 9px",fontWeight:700,color:"#BA4511"}}>{t.average}</td>
+                <td style={{padding:"7px 9px",color:"#676879"}}>{t.broad}</td>
+                <td style={{...S_MONO,padding:"7px 9px",color:keepColour(r.keepRate),fontWeight:600}}>
+                  {r.keepRate!=null?r.keepRate+"%":"—"}
+                  <span style={{color:"#9699A6",fontWeight:400}}> of {r.n.toLocaleString()}</span></td>
                 <td style={{padding:"7px 9px",color:"#676879"}}>{r.conf}</td>
                 <td style={{padding:"7px 9px",color:r.gap?"#D83A52":"#9699A6"}}>{r.gap||"no"}</td>
               </tr>);})}</tbody>
           </table></div>
           <div style={{fontSize:11.5,color:"#9699A6",marginTop:9}}>
             These are category-level sizes. For the size on one specific SKU, switch to <b>By product</b> — collars and harnesses in particular differ from each other.
+            <b> On clothing</b>, an average dog takes the larger of the two sizes: 66% of recorded exchanges went UP, and a slightly loose garment still works while a tight one comes back.
+            <b> On collars, leashes, harnesses and bandanas</b> an average dog stays on the size customers actually kept — an adjustable band has a hard lower limit, and sizing up a small dog gives them something that will not pull tight enough.
+            Keep rate belongs to the size customers bought most, not necessarily to the recommendation.
           </div>
         </section>
       </>);
